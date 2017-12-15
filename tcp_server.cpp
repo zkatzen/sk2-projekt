@@ -3,9 +3,11 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
+
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -13,15 +15,20 @@
 #include <netdb.h>
 #include <sys/epoll.h>
 #include <poll.h> 
+
 #include <thread>
 #include <unordered_set>
 #include <signal.h>
+#include <vector>
 
 // server socket
 int servFd;
 
 // client sockets
 std::unordered_set<int> clientFds;
+
+// client threads
+std::vector<std::thread>  clientThreads;
 
 // handles SIGINT
 void ctrl_c(int);
@@ -34,6 +41,9 @@ uint16_t readPort(char * txt);
 
 // sets SO_REUSEADDR
 void setReuseAddr(int sock);
+
+// threads stuff
+void receiveDataFromClient(int sock);
 
 int main(int argc, char ** argv){
 	// get and validate port number
@@ -90,40 +100,29 @@ int main(int argc, char ** argv){
 	printf("%s read! \n", fileName);
 	myFile.close();
 	
+	//
+	
 	/*
 	std::thread
 	t([&] {
-			
-			char start_msg[] = "song start";
-			char stop_msg[] = "song stop";
-			
+		char buffer[16]; //hehe, tiny
 			while (1) {
 				for (int clientFd : clientFds) {
 					
-					write(clientFd, start_msg, sizeof(start_msg));
-					
-					int write_result = write(clientFd, buffer, fileSize);
-					if (write_result != fileSize) {
-							printf("some troubles sendin' to fd %d...\n", clientFd); 
-					}
-					else {
-							printf("sent to %d\n", clientFd);
-					}
-					
-					write(clientFd, stop_msg, sizeof(stop_msg));
+					int bytesRead = read(clientFd, 
 
 				}
-				sleep(5);
 			}
 	});
 	*/
+
 /****************************/
 
 	// prowizoryczne znaczniki start i koniec przesylania
 	char start_msg[] = "start";
 	char stop_msg[] = "stop";
 	
-	while(true){
+	while(true) {
 
 		// prepare placeholders for client address
 		sockaddr_in clientAddr{0};
@@ -131,7 +130,7 @@ int main(int argc, char ** argv){
 		
 		// accept new connection
 		auto clientFd = accept(servFd, (sockaddr*) &clientAddr, &clientAddrSize);
-		if(clientFd == -1) error(1, errno, "accept failed");
+		if (clientFd == -1) error(1, errno, "accept failed");
 		
 		// add client to all clients set
 		clientFds.insert(clientFd);
@@ -150,6 +149,8 @@ int main(int argc, char ** argv){
 		
 		write(clientFd, stop_msg, sizeof(stop_msg));
 
+		std::thread t(receiveDataFromClient, clientFd);
+		t.detach();
 
 	}
 /****************************/
@@ -174,6 +175,27 @@ int main(int argc, char ** argv){
 	return 0;
 	
 }
+
+void receiveDataFromClient(int sock) {
+	printf("hello, im a thread from %d sock, readin' data", sock);
+	char buffer[40960];
+	int bytesTotal = 0;
+	while (1) {
+		int bytesRead = read(sock, buffer, sizeof(buffer));
+		printf("%d\n", bytesRead);
+		if (bytesRead > 0) {
+			bytesTotal += bytesRead;
+		}
+		else if (bytesRead == 0) {
+			printf("total bytes: %d\n", bytesTotal);
+		}
+		else if (bytesRead == -1) {
+			printf("troubles with reading from %d :C", sock);
+			return;
+		}	
+	}	
+}
+
 
 uint16_t readPort(char * txt){
 	char * ptr;
