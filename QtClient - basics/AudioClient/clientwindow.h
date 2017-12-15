@@ -8,6 +8,9 @@
 
 #include <QAudioOutput>
 #include <QAudioFormat>
+#include <QAudioInput>
+
+#include <QByteArray>
 
 namespace Ui {
 class ClientWindow;
@@ -28,20 +31,34 @@ public:
 
     void loadWavFile();
     void audioStahp();
+    void playFromServer();
+
+    void createAudioOutput();
+    void startLoadedAudio();
+    void sendSongToServer();
+
+    QAudioFormat getStdAudioFormat();
 
     void someError(QTcpSocket::SocketError);
 
     QTcpSocket *socket = 0;
 
-    QAudioOutput *audio = 0;
+    QAudioOutput *audioOut = 0;
+    QAudioInput *audioIn = 0;
+
     QFile sourceFile;
+
+    QByteArray *data;
+
+    bool songLoaded = false;
 
 
 private:
     Ui::ClientWindow *ui;
 
 private slots:
-    void handleStateChanged(QAudio::State newState);
+    void handleStateAudioOutChanged(QAudio::State newState);
+    void handleStateAudioInChanged(QAudio::State newState);
 
 };
 
