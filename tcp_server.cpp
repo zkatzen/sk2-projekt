@@ -16,7 +16,6 @@
 #include <thread>
 #include <unordered_set>
 #include <signal.h>
-#include <Qtcore>
 
 // server socket
 int servFd;
@@ -121,8 +120,8 @@ int main(int argc, char ** argv){
 /****************************/
 
 	// prowizoryczne znaczniki start i koniec przesylania
-	char start_msg[] = "song start";
-	char stop_msg[] = "song stop";
+	char start_msg[] = "start";
+	char stop_msg[] = "stop";
 	
 	while(true){
 
@@ -140,6 +139,7 @@ int main(int argc, char ** argv){
 		// tell who has connected
 		printf("new connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFd);
 		
+		// sends a welcome song
 		write(clientFd, start_msg, sizeof(start_msg));
 				
 		int write_result = write(clientFd, buffer, fileSize);
