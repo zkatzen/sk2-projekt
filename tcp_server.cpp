@@ -16,6 +16,7 @@
 #include <thread>
 #include <unordered_set>
 #include <signal.h>
+#include <Qtcore>
 
 // server socket
 int servFd;
