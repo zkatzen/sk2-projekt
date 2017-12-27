@@ -1,6 +1,7 @@
 #ifndef CLIENTWINDOW_H
 #define CLIENTWINDOW_H
 
+#include <iostream>
 #include <QMainWindow>
 
 #include <QtWidgets>
@@ -40,6 +41,7 @@ public:
     QAudioFormat getStdAudioFormat();
 
     void someError(QTcpSocket::SocketError);
+    void delay(int millisecondsToWait);
 
     QTcpSocket *socket = 0;
 
@@ -47,7 +49,7 @@ public:
     QAudioInput *audioIn = 0;
 
     QFile sourceFile;
-
+    QByteArray dataFromFile;
     QByteArray *data;
 
     bool songLoaded = false;

@@ -21,17 +21,29 @@ ClientWindow::ClientWindow(QWidget *parent) :
 }
 
 void ClientWindow::sendSongToServer() {
-    QAudioFormat format = this->getStdAudioFormat();
+
+    /*QAudioFormat format = this->getStdAudioFormat();
     audioIn = new QAudioInput(format, this);
     audioIn->setBufferSize(4096);
-    audioIn->start(socket);
     connect(audioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(handleStateAudioInChanged(QAudio::State)));
+    audioIn->start(socket);*/
+
+    // wyslac po prostu plik binarnie? skoro serwer odesle go w takiej formie
+    socket->write("fn:"); //znaczniki ktore wiadomosci dotycza czego, tak jak start+stop
+    socket->write(sourceFile.fileName().toUtf8());
+    socket->write(dataFromFile);
+    ui->messageBox->append("\nsent to server (.. at least tried)!");
 }
 
 void ClientWindow::startLoadedAudio() {
+
     if (audioOut) {
-        sourceFile.open(QIODevice::ReadOnly);
-        audioOut->start(&sourceFile);
+        if (dataFromFile.size() != 0) {
+            // plik wczytany do dataFromFile
+            QBuffer *buffer = new QBuffer(&dataFromFile);
+            buffer->open(QIODevice::ReadOnly);
+            audioOut->start(buffer);
+        }
     }
 }
 
@@ -40,6 +52,8 @@ void ClientWindow::playFromServer() {
         this->createAudioOutput();
         QBuffer *buffer = new QBuffer(data);
         buffer->open(QIODevice::ReadOnly);
+        audioOut->stop();
+        audioOut->setBufferSize(buffer->size());
         audioOut->start(buffer);
     }
     else {
@@ -79,19 +93,18 @@ void ClientWindow::dataAvailable() {
     auto dataRec = socket->readAll();
     if (dataRec.contains("start")) {
         int startPos = dataRec.indexOf("start");
-        data->append(dataRec.mid(startPos));
+        dataRec = dataRec.mid(startPos + sizeof("start"));
         ui->messageBox->append("there was start in the packet!");
     }
     else if (dataRec.contains("stop")) {
         int stopPos = dataRec.indexOf("stop");
-        dataRec.truncate(stopPos);
-        data->append(dataRec);
+        if (stopPos > 0) {
+            dataRec.truncate(stopPos);
+        }
         songLoaded = true;
         ui->messageBox->append("there was stop in the packet!");
     }
-    else {
-        data->append(dataRec);
-    }
+    data->append(dataRec);
     ui->messageBox->append(QString::number(dataRec.size()));
 
 }
@@ -99,9 +112,9 @@ void ClientWindow::dataAvailable() {
 void ClientWindow::handleStateAudioInChanged(QAudio::State newState) {
     switch (newState) {
         case QAudio::IdleState:
-            // Finished playing (no more data)
             audioIn->stop();
-            delete audioIn;
+            ui->messageBox->append("finished sending to server!");
+            delete audioIn; // ?
             break;
 
         case QAudio::StoppedState:
@@ -118,12 +131,12 @@ void ClientWindow::handleStateAudioInChanged(QAudio::State newState) {
 }
 
 void ClientWindow::handleStateAudioOutChanged(QAudio::State newState) {
+    QMessageBox::information(this, "Well...", "State changed! to " + QString::number(newState));
+
     switch (newState) {
         case QAudio::IdleState:
-            // Finished playing (no more data)
             audioOut->stop();
-            sourceFile.close();
-            delete audioOut;
+            delete audioOut; //?
             break;
 
         case QAudio::StoppedState:
@@ -179,8 +192,10 @@ void ClientWindow::loadWavFile() {
     }
 
     this->createAudioOutput();
-    //audioOut->start(&sourceFile);
-    QMessageBox::information(this, "Well...", "Loaded file size in bytes is " + QString::number(sourceFile.bytesAvailable()));
+
+    sourceFile.open(QIODevice::ReadOnly);
+    dataFromFile = sourceFile.readAll();
+    QMessageBox::information(this, "Well...", "Loaded file size in bytes is " + QString::number(dataFromFile.size()));
 
 }
 

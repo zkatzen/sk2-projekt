@@ -21,6 +21,9 @@
 #include <signal.h>
 #include <vector>
 
+#include <stdio.h>
+#include <string.h>
+
 // server socket
 int servFd;
 
@@ -41,6 +44,9 @@ uint16_t readPort(char * txt);
 
 // sets SO_REUSEADDR
 void setReuseAddr(int sock);
+
+// myslalam czy sie nie przyda, ale na razie nie ma w main'ie
+void setKeepAlive(int sock);
 
 // threads stuff
 void receiveDataFromClient(int sock);
@@ -99,22 +105,6 @@ int main(int argc, char ** argv){
 	myFile.read(buffer, fileSize);
 	printf("%s read! \n", fileName);
 	myFile.close();
-	
-	//
-	
-	/*
-	std::thread
-	t([&] {
-		char buffer[16]; //hehe, tiny
-			while (1) {
-				for (int clientFd : clientFds) {
-					
-					int bytesRead = read(clientFd, 
-
-				}
-			}
-	});
-	*/
 
 /****************************/
 
@@ -177,20 +167,37 @@ int main(int argc, char ** argv){
 }
 
 void receiveDataFromClient(int sock) {
-	printf("hello, im a thread from %d sock, readin' data", sock);
-	char buffer[40960];
+	printf("hello, im a thread from %d sock, readin' data\n", sock);
+	char buffer[4096];
 	int bytesTotal = 0;
+	char *snStart, *snEnd;
+	
+	char songNameStart[] = "fn:";
+	char songNameEnd[] = ".wav";
+	
 	while (1) {
 		int bytesRead = read(sock, buffer, sizeof(buffer));
-		printf("%d\n", bytesRead);
 		if (bytesRead > 0) {
 			bytesTotal += bytesRead;
+			printf("<got %d bytes>", bytesRead);
+			
+			snStart = strstr(buffer, songNameStart); // przydałoby się czyścić bufor
+			if ( snStart != nullptr ) {
+				printf("found songNameStart:\n%s\n", snStart + sizeof(songNameStart) - 1);
+			}
+			snEnd = strstr(buffer, songNameEnd);
+			if ( snEnd != nullptr ) {
+				printf("found songNameEnd\n");
+			}
+			
 		}
 		else if (bytesRead == 0) {
-			printf("total bytes: %d\n", bytesTotal);
+			printf("\n");
+			// theres nothin'...
 		}
 		else if (bytesRead == -1) {
-			printf("troubles with reading from %d :C", sock);
+			// cant read from sock = disconnection?
+			printf("troubles with reading from %d :C\n", sock);
 			return;
 		}	
 	}	
@@ -208,6 +215,12 @@ void setReuseAddr(int sock){
 	const int one = 1;
 	int res = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 	if(res) error(1,errno, "setsockopt failed");
+}
+
+void setKeepAlive(int sock) {
+	const int one = 1;
+	int res = setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
+	if(res) error(1,errno, "setkeepalive failed");
 }
 
 void ctrl_c(int){
