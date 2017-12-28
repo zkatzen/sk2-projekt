@@ -11,6 +11,7 @@ ClientWindow::ClientWindow(QWidget *parent) :
             &ClientWindow::doConnect);
     connect(ui->messageInput, &QLineEdit::returnPressed, this, &ClientWindow::sendData);
 
+    connect(ui->fileSelect, &QPushButton::clicked, this, &ClientWindow::selectWavFile);
     connect(ui->fileSend, &QPushButton::clicked, this, &ClientWindow::loadWavFile);
     connect(ui->startButton, &QPushButton::clicked, this, &ClientWindow::startLoadedAudio);
     connect(ui->stopButton, &QPushButton::clicked, this, &ClientWindow::audioStahp);
@@ -176,6 +177,14 @@ void ClientWindow::createAudioOutput() {
    audioOut = new QAudioOutput(format, this);
    connect(audioOut, SIGNAL(stateChanged(QAudio::State)), this, SLOT(handleStateAudioOutChanged(QAudio::State)));
 
+}
+
+
+void ClientWindow::selectWavFile() {
+    auto fileName = QFileDialog::getOpenFileName(this, tr("Open File"),
+                                                    "/home",
+                                                    tr("Music (*.wav)"));
+    ui->fileNameInput -> setText(fileName);
 }
 
 void ClientWindow::loadWavFile() {

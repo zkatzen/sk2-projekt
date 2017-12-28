@@ -6,6 +6,7 @@
 
 #include <QtWidgets>
 #include <QtNetwork>
+#include <QFileDialog>
 
 #include <QAudioOutput>
 #include <QAudioFormat>
@@ -30,6 +31,7 @@ public:
     void dataAvailable();
     void sendData();
 
+    void selectWavFile();
     void loadWavFile();
     void audioStahp();
     void playFromServer();

@@ -80,9 +80,9 @@
     <property name="geometry">
      <rect>
       <x>220</x>
-      <y>250</y>
+      <y>280</y>
       <width>101</width>
-      <height>41</height>
+      <height>21</height>
      </rect>
     </property>
     <property name="text">
@@ -106,7 +106,7 @@
     <property name="geometry">
      <rect>
       <x>110</x>
-      <y>290</y>
+      <y>310</y>
       <width>101</width>
       <height>22</height>
      </rect>
@@ -132,7 +132,7 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>290</y>
+      <y>310</y>
       <width>91</width>
       <height>22</height>
      </rect>
@@ -145,13 +145,26 @@
     <property name="geometry">
      <rect>
       <x>220</x>
-      <y>290</y>
+      <y>310</y>
       <width>101</width>
       <height>22</height>
      </rect>
     </property>
     <property name="text">
      <string>...send...</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="fileSelect">
+    <property name="geometry">
+     <rect>
+      <x>220</x>
+      <y>250</y>
+      <width>101</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Select file</string>
     </property>
    </widget>
   </widget>
