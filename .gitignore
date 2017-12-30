@@ -6,3 +6,4 @@ QtClient - basics/AudioClient/AudioClient.pro.user
 *.wav
 QtClient\ -\ basics/AudioClient/AudioClient.pro.*
 QtClient\ -\ basics/AudioClient/AudioClient.pro*
+song*

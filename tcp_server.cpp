@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -33,6 +34,9 @@ std::unordered_set<int> clientFds;
 // client threads
 std::vector<std::thread>  clientThreads;
 
+// files names
+std::vector<std::string> fileNames;
+
 // handles SIGINT
 void ctrl_c(int);
 
@@ -50,6 +54,8 @@ void setKeepAlive(int sock);
 
 // threads stuff
 void receiveDataFromClient(int sock);
+
+void sendNewDataToClient(int sock);
 
 int main(int argc, char ** argv){
 	// get and validate port number
@@ -140,7 +146,9 @@ int main(int argc, char ** argv){
 		write(clientFd, stop_msg, sizeof(stop_msg));
 
 		std::thread t(receiveDataFromClient, clientFd);
+		std::thread d(sendNewDataToClient, clientFd);
 		t.detach();
+		d.detach();
 
 	}
 /****************************/
@@ -168,6 +176,11 @@ int main(int argc, char ** argv){
 
 void receiveDataFromClient(int sock) {
 	printf("hello, im a thread from %d sock, readin' data\n", sock);
+	
+	int fileFd = -1;
+	int bytesWritten;
+	std::string fileName;	
+
 	char buffer[4096];
 	int bytesTotal = 0;
 	char *snStart, *snEnd;
@@ -180,29 +193,58 @@ void receiveDataFromClient(int sock) {
 		if (bytesRead > 0) {
 			bytesTotal += bytesRead;
 			printf("<got %d bytes>", bytesRead);
-			
+
 			snStart = strstr(buffer, songNameStart); // przydałoby się czyścić bufor
-			if ( snStart != nullptr ) {
-				printf("found songNameStart:\n%s\n", snStart + sizeof(songNameStart) - 1);
-			}
+			if( snStart != nullptr) {
+				printf("\nfound songNameStart:\n%s\n", snStart + sizeof(songNameStart) - 1);
+			}	
+		
 			snEnd = strstr(buffer, songNameEnd);
-			if ( snEnd != nullptr ) {
+			if ( snStart != nullptr && snEnd != nullptr) {
+				
 				printf("found songNameEnd\n");
+				char fN[] = "songXXXXXX.wav";
+				fileFd = mkostemps(fN,4, O_APPEND);
+				fileName = std::string(fN);
+				bytesWritten = write(fileFd,snEnd + sizeof(songNameEnd) - 1,bytesRead-(int)(snEnd-buffer+(int)sizeof(songNameEnd) - 1));
+			}
+
+			if (fileFd != -1 && snStart == nullptr && snEnd == nullptr) {
+				bytesWritten = write(fileFd, buffer, bytesRead);
+				
 			}
 			
 		}
 		else if (bytesRead == 0) {
-			printf("\n");
+			fileNames.push_back(fileName);
+			printf("closing file...");
+			if(close(fileFd) == 0) {
+			printf("closed.\n");
+					fileFd = -1;
+			} 
+			else {
+				printf("error, file couldn't be closed properly!\n");
+			}
+
+			printf("\ngot EOF, exiting the loop...bytes total: %d\n", bytesTotal);
+
+			break;
 			// theres nothin'...
 		}
-		else if (bytesRead == -1) {
+
+		else if (bytesRead < 0) {
 			// cant read from sock = disconnection?
 			printf("troubles with reading from %d :C\n", sock);
 			return;
-		}	
+		}
+		buffer[0] = '\0';	
+
 	}	
 }
 
+void sendNewDataToClient(int sock) {
+	
+}
 
 uint16_t readPort(char * txt){
 	char * ptr;
