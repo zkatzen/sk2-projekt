@@ -180,16 +180,24 @@ void receiveDataFromClient(int sock) {
 	int fileFd = -1;
 	int bytesWritten;
 	std::string fileName;	
-
+	int songSize;	
+	char songS[20];
+	
 	char buffer[4096];
-	int bytesTotal = 0;
-	char *snStart, *snEnd;
+	int bytesTotal = 0, bytesRead, bytesSong=0;
+	char *snStart, *snEnd, *sdStart;
 	
 	char songNameStart[] = "fn:";
 	char songNameEnd[] = ".wav";
+	char songDataStart[] = "RIFF";
 	
 	while (1) {
-		int bytesRead = read(sock, buffer, sizeof(buffer));
+		if(fileFd != -1 && (unsigned int)(songSize-bytesSong) < sizeof(buffer)) {
+			bytesRead = read(sock, buffer, songSize-bytesSong);
+		}
+		else {
+			bytesRead = read(sock, buffer, sizeof(buffer));
+		}
 		if (bytesRead > 0) {
 			bytesTotal += bytesRead;
 			printf("<got %d bytes>", bytesRead);
@@ -201,23 +209,32 @@ void receiveDataFromClient(int sock) {
 		
 			snEnd = strstr(buffer, songNameEnd);
 			if ( snStart != nullptr && snEnd != nullptr) {
-				
 				printf("found songNameEnd\n");
+			}
+			
+			sdStart = strstr(buffer, songDataStart);
+			if(snEnd!=nullptr && sdStart != nullptr) {
+				printf("found songDataStart\n");
+				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (int)((sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1)));
+				songSize = atoi(songS);
+				printf("%d\n", songSize);
+				printf("creating new file...");
 				char fN[] = "songXXXXXX.wav";
 				fileFd = mkostemps(fN,4, O_APPEND);
+				printf("success!\n");
 				fileName = std::string(fN);
-				bytesWritten = write(fileFd,snEnd + sizeof(songNameEnd) - 1,bytesRead-(int)(snEnd-buffer+(int)sizeof(songNameEnd) - 1));
-			}
-
+				bytesWritten = write(fileFd,sdStart,bytesRead-(int)(sdStart-buffer));
+				bytesSong += bytesWritten;
+			}	
 			if (fileFd != -1 && snStart == nullptr && snEnd == nullptr) {
 				bytesWritten = write(fileFd, buffer, bytesRead);
-				
+				bytesSong += bytesWritten;
 			}
 			
 		}
 		else if (bytesRead == 0) {
 			fileNames.push_back(fileName);
-			printf("closing file...");
+			printf("\nclosing file...");
 			if(close(fileFd) == 0) {
 			printf("closed.\n");
 					fileFd = -1;
@@ -226,9 +243,11 @@ void receiveDataFromClient(int sock) {
 				printf("error, file couldn't be closed properly!\n");
 			}
 
-			printf("\ngot EOF, exiting the loop...bytes total: %d\n", bytesTotal);
+			printf("\nSong recived, reseting...bytes total: %d\n", bytesTotal);
 
-			break;
+			bytesSong = 0;
+			fileFd = -1;
+			songS[0] = '\0';	
 			// theres nothin'...
 		}
 

@@ -33,7 +33,7 @@ void ClientWindow::sendSongToServer() {
     socket->write("fn:"); //znaczniki ktore wiadomosci dotycza czego, tak jak start+stop
     socket->write(sourceFile.fileName().toUtf8());
     // wysylanie rozmiaru pliku, w odpowiednim formacie
-    //socket->write(QByteArray::number(sourceFile.size()),10);
+    socket->write(QByteArray::number(sourceFile.size(),10));
     socket->write(dataFromFile);
     ui->messageBox->append("\nsent to server (.. at least tried)!");
 }
