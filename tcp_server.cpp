@@ -21,6 +21,7 @@
 #include <unordered_set>
 #include <signal.h>
 #include <vector>
+#include <map>
 
 #include <stdio.h>
 #include <string.h>
@@ -32,10 +33,13 @@ int servFd;
 std::unordered_set<int> clientFds;
 
 // client threads
-std::vector<std::thread>  clientThreads;
+std::vector<std::thread> clientThreads;
 
 // files names
 std::vector<std::string> fileNames;
+
+// clients and servers file names
+std::map<std::string, std::string> fileNamesDict;
 
 // handles SIGINT
 void ctrl_c(int);
@@ -151,24 +155,6 @@ int main(int argc, char ** argv){
 		d.detach();
 
 	}
-/****************************/
-		
-		// read a message
-		/*char buffer[255];
-		int count = read(clientFd, buffer, 255);
-		
-		if(count < 1) {
-			printf("removing %d\n", clientFd);
-			clientFds.erase(clientFd);
-			close(clientFd);
-			continue;
-		} else {
-			// broadcast the message
-			sendToAllBut(clientFd, buffer, count);
-		}*/
-		
-	//}
-/****************************/
 
 	return 0;
 	
@@ -179,75 +165,108 @@ void receiveDataFromClient(int sock) {
 	
 	int fileFd = -1;
 	int bytesWritten;
-	std::string fileName;	
-	int songSize;	
+	
+	std::string fileName;
+	std::string clientsFileName;	
+	
+	int songSize = 0;	
 	char songS[20];
 	
-	char buffer[4096];
-	int bytesTotal = 0, bytesRead, bytesSong=0;
+	char buffer[4096]; // tu może więcej gazu
+	int bytesTotal = 0, bytesRead, bytesSong = 0;
 	char *snStart, *snEnd, *sdStart;
 	
 	char songNameStart[] = "fn:";
 	char songNameEnd[] = ".wav";
 	char songDataStart[] = "RIFF";
 	
+	char byeMsg[] = "^bye^";
+	
 	while (1) {
+		
+		// <???>
 		if(fileFd != -1 && (unsigned int)(songSize-bytesSong) < sizeof(buffer)) {
 			bytesRead = read(sock, buffer, songSize-bytesSong);
 		}
 		else {
 			bytesRead = read(sock, buffer, sizeof(buffer));
 		}
+		// </???>
+		
 		if (bytesRead > 0) {
 			bytesTotal += bytesRead;
-			printf("<got %d bytes>", bytesRead);
-
+			// printf("<got %d bytes>", bytesRead);
+			
+			char* goodbyeCheck = strstr(buffer, byeMsg);
+			if (goodbyeCheck != nullptr) {
+				// client has disconnected
+				clientFds.erase(sock);
+				printf("\nsocket %d has sent goodbye...", sock);
+				break;
+			}
+			
 			snStart = strstr(buffer, songNameStart); // przydałoby się czyścić bufor
 			if( snStart != nullptr) {
-				printf("\nfound songNameStart:\n%s\n", snStart + sizeof(songNameStart) - 1);
+				//printf("\n'songNameStart' found:\n%s\n", snStart + sizeof(songNameStart) - 1);				
 			}	
 		
 			snEnd = strstr(buffer, songNameEnd);
-			if ( snStart != nullptr && snEnd != nullptr) {
-				printf("found songNameEnd\n");
+			if (snEnd != nullptr) {
+				char getFn[snEnd - snStart + 1];
+				strncpy(getFn, snStart + sizeof(songNameStart) - 1, snEnd - snStart + 1);
+				clientsFileName = std::string(getFn);
 			}
 			
 			sdStart = strstr(buffer, songDataStart);
-			if(snEnd!=nullptr && sdStart != nullptr) {
-				printf("found songDataStart\n");
-				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (int)((sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1)));
+			
+			if (snEnd!=nullptr && sdStart != nullptr) {
+				
+				printf("'songDataStart' found\n");
+				bytesSong = 0;
+				
+				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (int)((sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1))); // jaaa...
 				songSize = atoi(songS);
-				printf("%d\n", songSize);
-				printf("creating new file...");
+				printf("creating new file... ");
+				
 				char fN[] = "songXXXXXX.wav";
 				fileFd = mkostemps(fN,4, O_APPEND);
 				printf("success!\n");
+				
 				fileName = std::string(fN);
-				bytesWritten = write(fileFd,sdStart,bytesRead-(int)(sdStart-buffer));
+				fileNamesDict[fileName] = clientsFileName;
+				printf("(created file '%s' for '%s')\n", fileName.c_str(), clientsFileName.c_str());
+				
+				bytesWritten = write(fileFd, sdStart, bytesRead-(int)(sdStart-buffer));
 				bytesSong += bytesWritten;
+				
 			}	
-			if (fileFd != -1 && snStart == nullptr && snEnd == nullptr) {
+			
+			if (fileFd != -1) {
+				// file was created and we're writin'
 				bytesWritten = write(fileFd, buffer, bytesRead);
 				bytesSong += bytesWritten;
 			}
 			
-		}
-		else if (bytesRead == 0) {
-			fileNames.push_back(fileName);
-			printf("\nclosing file...");
-			if(close(fileFd) == 0) {
-			printf("closed.\n");
+			if (bytesSong == songSize) {
+				// udalo sie zapisac do pliku całą piosenkę (na podstawie ilości bajtów)
+				fileNames.push_back(fileName);
+				printf("\nclosing file '%s'...\n", fileName.c_str());
+				if (close(fileFd) == 0) {
+					printf("closed!\n");
 					fileFd = -1;
-			} 
-			else {
-				printf("error, file couldn't be closed properly!\n");
+				} 
+				else {
+					printf("error, file couldn't be closed properly!\n");
+					// i co? idk
+				}
+				printf("\nSong recived, reseting...bytes total: %d\n", bytesTotal);
+				bytesSong = 0;
+				fileFd = -1;
+				songS[0] = '\0';	
 			}
-
-			printf("\nSong recived, reseting...bytes total: %d\n", bytesTotal);
-
-			bytesSong = 0;
-			fileFd = -1;
-			songS[0] = '\0';	
+		}
+		
+		else if (bytesRead == 0) {
 			// theres nothin'...
 		}
 
@@ -258,7 +277,9 @@ void receiveDataFromClient(int sock) {
 		}
 		buffer[0] = '\0';	
 
-	}	
+	}
+	
+	printf("\n%d sock's thread has escaped while loop :)\n", sock);	
 }
 
 void sendNewDataToClient(int sock) {

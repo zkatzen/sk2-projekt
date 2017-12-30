@@ -21,21 +21,32 @@ ClientWindow::ClientWindow(QWidget *parent) :
 
 }
 
+void ClientWindow::closeEvent(QCloseEvent *event) {
+    // stuff
+    if (connectedToServer) {
+        socket->write("^bye^");
+        socket->disconnectFromHost();
+    }
+    QMessageBox::information(this, "(cries)", "Nevermind, I'll find someone like you (uuu)");
+    QWidget::closeEvent(event);
+}
+
 void ClientWindow::sendSongToServer() {
 
-    /*QAudioFormat format = this->getStdAudioFormat();
-    audioIn = new QAudioInput(format, this);
-    audioIn->setBufferSize(4096);
-    connect(audioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(handleStateAudioInChanged(QAudio::State)));
-    audioIn->start(socket);*/
+    if (socket == nullptr || connectedToServer == false) {
+        QMessageBox::information(this, "Error", "You should really connect to server first.");
+        return;
+    }
+    else if (connectedToServer) {
 
-    // wyslac po prostu plik binarnie? skoro serwer odesle go w takiej formie
-    socket->write("fn:"); //znaczniki ktore wiadomosci dotycza czego, tak jak start+stop
-    socket->write(sourceFile.fileName().toUtf8());
-    // wysylanie rozmiaru pliku, w odpowiednim formacie
-    socket->write(QByteArray::number(sourceFile.size(),10));
-    socket->write(dataFromFile);
-    ui->messageBox->append("\nsent to server (.. at least tried)!");
+        socket->write("fn:"); //znaczniki ktore wiadomosci dotycza czego, tak jak start+stop
+        socket->write(loadedFileName.toUtf8()); //bez informacji o lokalizacji pliku (bez path)
+        // wysylanie rozmiaru pliku, w odpowiednim formacie
+        socket->write(QByteArray::number(sourceFile.size(), 10));
+        socket->write(dataFromFile);
+        ui->messageBox->append("\nsent " + loadedFileName + " file to server (or attempted to ;))");
+
+    }
 }
 
 void ClientWindow::startLoadedAudio() {
@@ -76,7 +87,6 @@ void ClientWindow::doConnect() {
     connect(socket, (void (QTcpSocket::*) (QTcpSocket::SocketError))
             &QTcpSocket::error, this, &ClientWindow::someError);
 
-    //socket->connectToHost(host, port);
     socket->connectToHost(host, port);
 }
 
@@ -86,18 +96,22 @@ void ClientWindow::audioStahp() {
 
 void ClientWindow::connSucceeded() {
     ui->destAddr->setEnabled(false);
-    ui->messageInput->setEnabled(true);
+    ui->messageInput->setEnabled(true); // ...
     data = new QByteArray();
+
+    this->connectedToServer = true;
+    ui->sendButton->setEnabled(true);
+    ui->serverPlayButton->setEnabled(true);
 }
 
 void ClientWindow::dataAvailable() {
-    ui->messageBox->append("\nreading all:\n");
+    //ui->messageBox->append("\nreading all:\n");
 
     auto dataRec = socket->readAll();
     if (dataRec.contains("start")) {
         int startPos = dataRec.indexOf("start");
         dataRec = dataRec.mid(startPos + sizeof("start"));
-        ui->messageBox->append("there was start in the packet!");
+        ui->messageBox->append("there was 'start'' in the packet!");
     }
     else if (dataRec.contains("stop")) {
         int stopPos = dataRec.indexOf("stop");
@@ -105,7 +119,7 @@ void ClientWindow::dataAvailable() {
             dataRec.truncate(stopPos);
         }
         songLoaded = true;
-        ui->messageBox->append("there was stop in the packet!");
+        ui->messageBox->append("there was 'stop'' in the packet!");
     }
     data->append(dataRec);
     ui->messageBox->append(QString::number(dataRec.size()));
@@ -186,27 +200,29 @@ void ClientWindow::selectWavFile() {
     auto fileName = QFileDialog::getOpenFileName(this, tr("Open File"),
                                                     "/home",
                                                     tr("Music (*.wav)"));
-    ui->fileNameInput -> setText(fileName);
+    ui->fileNameInput->setText(fileName);
 }
 
 void ClientWindow::loadWavFile() {
 
-    auto fileName = ui->fileNameInput->text();
-
-    sourceFile.setFileName(fileName);
+    auto fileNameWithPath = ui->fileNameInput->text();
+    sourceFile.setFileName(fileNameWithPath);
     if (!sourceFile.exists()) {
         QMessageBox::information(this, "Well...", "File doesnt exist, sorry :<");
         return;
     }
     else {
-        QMessageBox::information(this, "Well...", "File open! <3");
+        QMessageBox::information(this, "Good news", "File open! <3");
     }
 
     this->createAudioOutput();
+    loadedFileName = fileNameWithPath.mid(fileNameWithPath.lastIndexOf('/')+1);
 
     sourceFile.open(QIODevice::ReadOnly);
     dataFromFile = sourceFile.readAll();
-    QMessageBox::information(this, "Well...", "Loaded file size in bytes is " + QString::number(dataFromFile.size()));
+    sourceFile.close();
+    QMessageBox::information(this, "What happened:", "Loaded file size in bytes is " + QString::number(dataFromFile.size())
+                             + ", file name is " + loadedFileName);
 
 }
 
@@ -221,6 +237,13 @@ void ClientWindow::sendData() {
 
 void ClientWindow::someError(QTcpSocket::SocketError) {
     QMessageBox::critical(this, "Error", socket->errorString());
+    if (socket->error() == QTcpSocket::RemoteHostClosedError) {
+        ui->destAddr->setEnabled(true);
+        this->connectedToServer = false;
+        ui->sendButton->setEnabled(false);
+        ui->serverPlayButton->setEnabled(false);
+        ui->messageBox->append("\n!!! server has disconnected! \n!!! consider re-connecting ;)\n");
+    }
 }
 
 ClientWindow::~ClientWindow()

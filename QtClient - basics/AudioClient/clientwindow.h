@@ -14,6 +14,8 @@
 
 #include <QByteArray>
 
+#include <QCloseEvent>
+
 namespace Ui {
 class ClientWindow;
 }
@@ -24,6 +26,7 @@ class ClientWindow : public QMainWindow
 
 public:
     explicit ClientWindow(QWidget *parent = 0);
+    void closeEvent(QCloseEvent *event);
     ~ClientWindow();
 
     void doConnect();
@@ -45,16 +48,18 @@ public:
     void someError(QTcpSocket::SocketError);
     void delay(int millisecondsToWait);
 
-    QTcpSocket *socket = 0;
+    QTcpSocket *socket = nullptr;
 
     QAudioOutput *audioOut = 0;
     QAudioInput *audioIn = 0;
 
     QFile sourceFile;
+    QString loadedFileName;
     QByteArray dataFromFile;
     QByteArray *data;
 
     bool songLoaded = false;
+    bool connectedToServer = false;
 
 
 private:
