@@ -41,6 +41,9 @@ std::vector<std::string> fileNames;
 // clients and servers file names
 std::map<std::string, std::string> fileNamesDict;
 
+// song name + client user name
+std::map<std::string, std::string> playList;
+
 // handles SIGINT
 void ctrl_c(int);
 
@@ -58,8 +61,13 @@ void setKeepAlive(int sock);
 
 // threads stuff
 void receiveDataFromClient(int sock);
-
 void sendNewDataToClient(int sock);
+
+void sendPlaylistInfo(int sock, std::string playlist);
+void checkClientFd(int sock);
+std::string getPlayListString();
+
+void updatePlaylistInfo();
 
 int main(int argc, char ** argv){
 	// get and validate port number
@@ -148,11 +156,11 @@ int main(int argc, char ** argv){
 				printf("sent all I had to %d <3\n", clientFd);
 		
 		write(clientFd, stop_msg, sizeof(stop_msg));
-
-		std::thread t(receiveDataFromClient, clientFd);
+		
 		std::thread d(sendNewDataToClient, clientFd);
-		t.detach();
+		std::thread t(receiveDataFromClient, clientFd);
 		d.detach();
+		t.detach();
 
 	}
 
@@ -212,8 +220,8 @@ void receiveDataFromClient(int sock) {
 		
 			snEnd = strstr(buffer, songNameEnd);
 			if (snEnd != nullptr) {
-				char getFn[snEnd - snStart + 1];
-				strncpy(getFn, snStart + sizeof(songNameStart) - 1, snEnd - snStart + 1);
+				char getFn[snEnd - (snStart + sizeof(songNameStart) - 1)];
+				strncpy(getFn, snStart + sizeof(songNameStart) - 1, snEnd - (snStart + sizeof(songNameStart) - 1));
 				clientsFileName = std::string(getFn);
 			}
 			
@@ -233,7 +241,6 @@ void receiveDataFromClient(int sock) {
 				printf("success!\n");
 				
 				fileName = std::string(fN);
-				fileNamesDict[fileName] = clientsFileName;
 				printf("(created file '%s' for '%s')\n", fileName.c_str(), clientsFileName.c_str());
 				
 				bytesWritten = write(fileFd, sdStart, bytesRead-(int)(sdStart-buffer));
@@ -259,7 +266,16 @@ void receiveDataFromClient(int sock) {
 					printf("error, file couldn't be closed properly!\n");
 					// i co? idk
 				}
+				
+				fileNamesDict[fileName] = clientsFileName;
+				playList[fileName] = "socket '" + std::to_string(sock) + "'";
 				printf("\nSong recived, reseting...bytes total: %d\n", bytesTotal);
+
+				updatePlaylistInfo();
+				// new song = info o zmianach na playliście do wszystkich klientów!
+				// od momentu dodania piosenki do playlisty musi być atomowy dostęp do niej,
+				// aż z-update'ujemy (:d) playlistę każdego klienta
+
 				bytesSong = 0;
 				fileFd = -1;
 				songS[0] = '\0';	
@@ -283,7 +299,71 @@ void receiveDataFromClient(int sock) {
 }
 
 void sendNewDataToClient(int sock) {
+	sendPlaylistInfo(sock, getPlayListString());
+}
+
+void updatePlaylistInfo() {
+	std::string playlist = getPlayListString();
+	if (playlist.length() == 0) {
+		return;
+	}
+	for (const auto& client : clientFds) {
+		sendPlaylistInfo(client, playlist);
+	}
+	printf("playlist -> all clients updated\n");
+};
+
+std::string getPlayListString() {
 	
+	std::string result = "";
+	
+	if (playList.size() == 0) {
+		printf("was to get playlist info, but playlist is empty\n");
+		return result;
+	}
+	
+	std::map<std::string, std::string>::iterator it;
+	int counter = 1;
+	for (it = playList.begin(); it != playList.end(); it++) {
+		result += "<" + std::to_string(counter++) + ":";
+		result += fileNamesDict[it->first] + ":" + it->second;
+	}
+	
+	return result;
+	
+}
+
+void sendPlaylistInfo(int sock, std::string plString) {
+
+	std::string start = "<playlist>";
+	std::string end = "<end_playlist>";
+
+	std::string dataStr = "<playlist>" + plString + "<end_playlist>";
+	
+	if (plString.length() == 0) {
+		return;
+	}
+	
+	int plSize = dataStr.length();
+
+	char data[plSize + 1];
+	dataStr.copy(data, plSize);
+	data[plSize] = '\0';
+	
+	int writeRes = write(sock, data, sizeof(data));
+	// printf("wrote with result %d to socket %d, playlist %s\n", writeRes, sock, data);
+	if (writeRes == -1) {
+		checkClientFd(sock);
+		return;
+	}
+
+}
+
+void checkClientFd(int sock) {
+	printf("! got error when writing to %d fd : %s\n", sock, strerror(errno));
+	// obsluga błędów
+	// man7.org/linux/man-pages/man2/write.2.html - duzo ich tutaj
+	// (usunięcie z cilentFds i zamknięcie wątku)
 }
 
 uint16_t readPort(char * txt){
@@ -308,6 +388,14 @@ void setKeepAlive(int sock) {
 void ctrl_c(int){
 	for(int clientFd : clientFds)
 		close(clientFd);
+	for(std::string s : fileNames) {
+		if (remove(s.c_str()) != 0) {
+			printf("troubles with removing %s\n", s.c_str());
+		}
+		else {
+			printf("removing file %s\n", s.c_str());
+		}
+	}
 	close(servFd);
 	printf("Closing server\n");
 	exit(0);

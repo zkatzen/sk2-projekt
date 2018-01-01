@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>334</width>
-    <height>404</height>
+    <width>526</width>
+    <height>395</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <rect>
       <x>10</x>
       <y>10</y>
-      <width>191</width>
+      <width>121</width>
       <height>31</height>
      </rect>
     </property>
@@ -30,7 +30,7 @@
    <widget class="QSpinBox" name="portNumber">
     <property name="geometry">
      <rect>
-      <x>210</x>
+      <x>140</x>
       <y>10</y>
       <width>111</width>
       <height>31</height>
@@ -46,9 +46,9 @@
    <widget class="QPushButton" name="makeConnection">
     <property name="geometry">
      <rect>
-      <x>70</x>
+      <x>10</x>
       <y>50</y>
-      <width>181</width>
+      <width>241</width>
       <height>41</height>
      </rect>
     </property>
@@ -61,25 +61,15 @@
      <rect>
       <x>10</x>
       <y>100</y>
-      <width>311</width>
-      <height>71</height>
-     </rect>
-    </property>
-   </widget>
-   <widget class="QLineEdit" name="messageInput">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>180</y>
-      <width>311</width>
-      <height>31</height>
+      <width>241</width>
+      <height>111</height>
      </rect>
     </property>
    </widget>
    <widget class="QPushButton" name="fileSend">
     <property name="geometry">
      <rect>
-      <x>220</x>
+      <x>150</x>
       <y>280</y>
       <width>101</width>
       <height>21</height>
@@ -94,8 +84,8 @@
      <rect>
       <x>10</x>
       <y>260</y>
-      <width>201</width>
-      <height>22</height>
+      <width>141</width>
+      <height>41</height>
      </rect>
     </property>
     <property name="text">
@@ -105,14 +95,14 @@
    <widget class="QPushButton" name="stopButton">
     <property name="geometry">
      <rect>
-      <x>110</x>
+      <x>80</x>
       <y>310</y>
-      <width>101</width>
+      <width>71</width>
       <height>22</height>
      </rect>
     </property>
     <property name="text">
-     <string>...stahp...</string>
+     <string>stop</string>
     </property>
    </widget>
    <widget class="QPushButton" name="serverPlayButton">
@@ -123,7 +113,7 @@
      <rect>
       <x>10</x>
       <y>220</y>
-      <width>311</width>
+      <width>241</width>
       <height>22</height>
      </rect>
     </property>
@@ -136,12 +126,12 @@
      <rect>
       <x>10</x>
       <y>310</y>
-      <width>91</width>
+      <width>71</width>
       <height>22</height>
      </rect>
     </property>
     <property name="text">
-     <string>...start...</string>
+     <string>start</string>
     </property>
    </widget>
    <widget class="QPushButton" name="sendButton">
@@ -150,28 +140,69 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>220</x>
+      <x>150</x>
       <y>310</y>
       <width>101</width>
       <height>22</height>
      </rect>
     </property>
     <property name="text">
-     <string>...send...</string>
+     <string>send!</string>
     </property>
    </widget>
    <widget class="QPushButton" name="fileSelect">
     <property name="geometry">
      <rect>
-      <x>220</x>
-      <y>250</y>
+      <x>150</x>
+      <y>260</y>
       <width>101</width>
       <height>22</height>
      </rect>
     </property>
     <property name="text">
-     <string>Select file</string>
+     <string>Select file...</string>
     </property>
+   </widget>
+   <widget class="QTableWidget" name="playlistWidget">
+    <property name="geometry">
+     <rect>
+      <x>270</x>
+      <y>10</y>
+      <width>241</width>
+      <height>331</height>
+     </rect>
+    </property>
+    <property name="rowCount">
+     <number>20</number>
+    </property>
+    <property name="columnCount">
+     <number>2</number>
+    </property>
+    <attribute name="horizontalHeaderDefaultSectionSize">
+     <number>98</number>
+    </attribute>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <row/>
+    <column/>
+    <column/>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">
@@ -179,7 +210,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>334</width>
+     <width>526</width>
      <height>25</height>
     </rect>
    </property>

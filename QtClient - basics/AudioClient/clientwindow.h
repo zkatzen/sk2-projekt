@@ -46,7 +46,8 @@ public:
     QAudioFormat getStdAudioFormat();
 
     void someError(QTcpSocket::SocketError);
-    void delay(int millisecondsToWait);
+
+    void updatePlaylist(QByteArray playlistData);
 
     QTcpSocket *socket = nullptr;
 
@@ -56,10 +57,11 @@ public:
     QFile sourceFile;
     QString loadedFileName;
     QByteArray dataFromFile;
-    QByteArray *data;
+    QByteArray *songData;
 
     bool songLoaded = false;
     bool connectedToServer = false;
+    bool songLoading = false;
 
 
 private:

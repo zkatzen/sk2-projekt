@@ -9,7 +9,6 @@ ClientWindow::ClientWindow(QWidget *parent) :
 
     connect(ui->makeConnection, &QPushButton::clicked, this,
             &ClientWindow::doConnect);
-    connect(ui->messageInput, &QLineEdit::returnPressed, this, &ClientWindow::sendData);
 
     connect(ui->fileSelect, &QPushButton::clicked, this, &ClientWindow::selectWavFile);
     connect(ui->fileSend, &QPushButton::clicked, this, &ClientWindow::loadWavFile);
@@ -32,6 +31,11 @@ void ClientWindow::closeEvent(QCloseEvent *event) {
 }
 
 void ClientWindow::sendSongToServer() {
+
+    if (dataFromFile.size() == 0) {
+        QMessageBox::information(this, "Error", "You didn't load a song.");
+        return;
+    }
 
     if (socket == nullptr || connectedToServer == false) {
         QMessageBox::information(this, "Error", "You should really connect to server first.");
@@ -64,7 +68,7 @@ void ClientWindow::startLoadedAudio() {
 void ClientWindow::playFromServer() {
     if (songLoaded) {
         this->createAudioOutput();
-        QBuffer *buffer = new QBuffer(data);
+        QBuffer *buffer = new QBuffer(songData);
         buffer->open(QIODevice::ReadOnly);
         audioOut->stop();
         audioOut->setBufferSize(buffer->size());
@@ -96,8 +100,7 @@ void ClientWindow::audioStahp() {
 
 void ClientWindow::connSucceeded() {
     ui->destAddr->setEnabled(false);
-    ui->messageInput->setEnabled(true); // ...
-    data = new QByteArray();
+    songData = new QByteArray();
 
     this->connectedToServer = true;
     ui->sendButton->setEnabled(true);
@@ -108,22 +111,55 @@ void ClientWindow::dataAvailable() {
     //ui->messageBox->append("\nreading all:\n");
 
     auto dataRec = socket->readAll();
+
+    // SONG
     if (dataRec.contains("start")) {
+        songLoading = true;
         int startPos = dataRec.indexOf("start");
         dataRec = dataRec.mid(startPos + sizeof("start"));
-        ui->messageBox->append("there was 'start'' in the packet!");
+        ui->messageBox->append("song -> there was 'start'' in the packet!");
     }
     else if (dataRec.contains("stop")) {
         int stopPos = dataRec.indexOf("stop");
         if (stopPos > 0) {
             dataRec.truncate(stopPos);
         }
+        songData->append(dataRec);
         songLoaded = true;
-        ui->messageBox->append("there was 'stop'' in the packet!");
+        songLoading = false;
+        ui->messageBox->append("song -> there was 'stop'' in the packet!");
     }
-    data->append(dataRec);
-    ui->messageBox->append(QString::number(dataRec.size()));
+    if (songLoading) {
+        songData->append(dataRec);
+    }
 
+    // PLAYLIST
+    if (dataRec.contains("<playlist>")) {
+        this->updatePlaylist(dataRec);
+    }
+
+    //ui->messageBox->append(QString::number(dataRec.size()));
+
+}
+
+void ClientWindow::updatePlaylist(QByteArray playlistData) {
+    if (playlistData.contains("<playlist>") && playlistData.contains("<end_playlist>")) {
+        int plLen = playlistData.indexOf("<end_playlist>") - playlistData.indexOf("<playlist>") - sizeof("<playlist>");
+        auto playlist = playlistData.mid(playlistData.indexOf("<playlist>") + sizeof("<playlist>") - 1, plLen);
+        QStringList songs = QString::fromUtf8(playlist).split('<', QString::SkipEmptyParts);
+        ui->playlistWidget->clear();
+        int rowCounter = 0;
+        for (QString s : songs) {
+            QStringList slices = s.split(':');
+            for (int i = 1; i < slices.length(); i++)
+                ui->playlistWidget->setItem(rowCounter, i-1, new QTableWidgetItem(slices[i]));
+            rowCounter++;
+        }
+
+    }
+    else {
+        QMessageBox::information(this, "Error", "I got incomplete playlist data packet :|");
+    }
 }
 
 void ClientWindow::handleStateAudioInChanged(QAudio::State newState) {
@@ -227,12 +263,16 @@ void ClientWindow::loadWavFile() {
 }
 
 void ClientWindow::sendData() {
+    /*
+     * może się jeszcze przyda do czegoś
+     *
     QString str = ui->messageInput->text();
     str += '\n';
     auto data = str.toUtf8();
     socket->write(data);
     ui->messageBox->append("<i>" + str + "</i>");
     ui->messageInput->clear();
+    */
 }
 
 void ClientWindow::someError(QTcpSocket::SocketError) {
