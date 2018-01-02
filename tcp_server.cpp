@@ -324,10 +324,14 @@ std::string getPlayListString() {
 	
 	std::map<std::string, std::string>::iterator it;
 	int counter = 1;
-	for (it = playList.begin(); it != playList.end(); it++) {
+	for (unsigned int i = 0; i < fileNames.size(); i++) {
+		result += "<" + std::to_string(counter++) + ":";
+		result += fileNamesDict[fileNames[i]] + ":" + playList[fileNames[i]];
+	}
+	/*for (it = playList.begin(); it != playList.end(); it++) {
 		result += "<" + std::to_string(counter++) + ":";
 		result += fileNamesDict[it->first] + ":" + it->second;
-	}
+	}*/
 	
 	return result;
 	
