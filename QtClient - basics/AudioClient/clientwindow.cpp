@@ -30,7 +30,7 @@ void ClientWindow::startPlaylist() {
     if (ui->playlistWidget->rowCount() > 0) {
         // there's somethin' on a playlist
         socket->write("^START_PLAYLIST^");
-        qmp->play();
+
 
     }
 }
@@ -89,7 +89,7 @@ void ClientWindow::startLoadedAudio() {
             buffer->open(QIODevice::ReadOnly);
 
             qmp->setMedia(QMediaContent(), buffer);
-            qmp->play();
+
 
         }
     }
@@ -177,9 +177,25 @@ void ClientWindow::dataAvailable() {
         ui->messageBox->append(dataRec);
 
         QDataStream ds(dataRec);
-        qint64 setMiliFromStart;// = dataRec::toLongLong();
+        int setMiliFromStart;// = dataRec::toLongLong();
         ds >> setMiliFromStart;
-        qmp->setPosition(setMiliFromStart);
+        auto tim = dataRec.toInt();
+        auto l = QStringLiteral("%1").arg( tim);
+        ui->messageBox->append(l);
+
+        if(tim == 0) {
+            ui->messageBox->append("tim 0???");
+            QBuffer *buffer = new QBuffer(qmp);
+            buffer->setData(*songData);
+            buffer->open(QIODevice::ReadOnly);
+
+            qmp->setMedia(QMediaContent(), buffer);
+            qmp->play();
+        }
+        else {
+            qmp->setPosition(tim*1000);
+        }
+
 
     }
     if (songLoading) {

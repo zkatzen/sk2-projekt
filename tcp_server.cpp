@@ -409,7 +409,6 @@ void broadcastSong(int socket, std::string filename) {
 	//std::string posMsgStr = "^POS^";
 	
 	char positionMsg[] = "^POS^";
-	char endPosMsg[] = "^END_POS^";
 	
 	std::ifstream myFile (filename, std::ios::in | std::ios::binary);
 	int fileSize = getFileSize(myFile);
