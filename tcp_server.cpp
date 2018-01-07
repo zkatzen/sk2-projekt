@@ -443,14 +443,18 @@ void broadcastSong(int socket, std::string filename) {
 		
 		if (currentInterv != 0) {
 			int dig = countDigits(currentInterv);
-			printf("%d, %d\n", currentInterv, dig);
 			char posStr[dig + 1];
 			sprintf(posStr, "%d", currentInterv);
-			posStr[dig] = '\0';
+			
+			write(socket, posStr, sizeof(posStr));
+			printf("%s\n", posStr);
+
+		}
+		else {
+			write(socket, posStr, sizeof(posStr));
+			printf("%s\n", posStr);
 		}
 		
-		write(socket, posStr, sizeof(posStr));
-		printf("%s\n", posStr);
 		
 		nanosleep(&interval, NULL);
 	}
