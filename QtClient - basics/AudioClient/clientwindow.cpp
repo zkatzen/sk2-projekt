@@ -105,12 +105,6 @@ void ClientWindow::playFromServer() {
         buffer->open(QIODevice::ReadOnly);
 
         qmp->setMedia(QMediaContent(), buffer);
-
-        QFile file("test.wav");
-        file.open(QIODevice::WriteOnly);
-        file.write(songData->data(), songData->size());
-        file.close();
-
         qmp->play();
 
     }
