@@ -19,14 +19,21 @@ ClientWindow::ClientWindow(QWidget *parent) :
     connect(ui->sendButton, &QPushButton::clicked, this, &ClientWindow::sendSongToServer);
 
     connect(ui->pushMeButton, &QPushButton::clicked, this, &ClientWindow::pushMeButtonClicked);
+    connect(ui->firePlaylistButton, &QPushButton::clicked, this, &ClientWindow::startPlaylist);
+
+    qmp = new QMediaPlayer(this);
+    qmp->setAudioRole(QAudio::MusicRole);
 
 }
 
+void ClientWindow::startPlaylist() {
+    if (ui->playlistWidget->rowCount() > 0) {
+        // there's somethin' on a playlist
+        socket->write("^START_PLAYLIST^");
+    }
+}
+
 void ClientWindow::pushMeButtonClicked() {
-    /*if (audioOut->state() == QAudio::ActiveState) {
-        auto secs = audioOut->elapsedUSecs();
-        ui->messageBox->append("audioOut->elapsedUSecs() = " + QString::number(secs));
-    }*/
     if (qmp->state() == QMediaPlayer::PlayingState) {
         auto pos = qmp->position();
         ui->messageBox->append("qmp->songPosition() = " + QString::number(pos));
@@ -68,12 +75,10 @@ void ClientWindow::sendSongToServer() {
 
 void ClientWindow::startLoadedAudio() {
 
-    if (audioOut) {
+    if (qmp) {
         if (dataFromFile.size() != 0) {
             // plik wczytany do dataFromFile
 
-            qmp = new QMediaPlayer(this);
-            qmp->setAudioRole(QAudio::MusicRole);
             //connect(qmp, SIGNAL(&QMediaPlayer::positionChanged(qint64)),
             //        this, SLOT(&ClientWindow::positionChanged(qint64)));
 
@@ -94,12 +99,20 @@ void ClientWindow::positionChanged(qint64 progress) {
 
 void ClientWindow::playFromServer() {
     if (songLoaded) {
-        this->createAudioOutput();
-        QBuffer *buffer = new QBuffer(songData);
+
+        QBuffer *buffer = new QBuffer(qmp);
+        buffer->setData(songData->data());
         buffer->open(QIODevice::ReadOnly);
-        audioOut->stop();
-        audioOut->setBufferSize(buffer->size());
-        audioOut->start(buffer);
+
+        qmp->setMedia(QMediaContent(), buffer);
+
+        QFile file("test.wav");
+        file.open(QIODevice::WriteOnly);
+        file.write(songData->data());
+        file.close();
+
+        qmp->play();
+
     }
     else {
         return;
@@ -136,7 +149,6 @@ void ClientWindow::connSucceeded() {
 }
 
 void ClientWindow::dataAvailable() {
-    //ui->messageBox->append("\nreading all:\n");
 
     auto dataRec = socket->readAll();
 
@@ -146,16 +158,20 @@ void ClientWindow::dataAvailable() {
         int startPos = dataRec.indexOf("start");
         dataRec = dataRec.mid(startPos + sizeof("start"));
         ui->messageBox->append("song -> there was 'start'' in the packet!");
+        ui->messageBox->append(dataRec);
     }
     else if (dataRec.contains("stop")) {
         int stopPos = dataRec.indexOf("stop");
         if (stopPos > 0) {
             dataRec.truncate(stopPos);
+            songData->append(dataRec);
         }
-        songData->append(dataRec);
+
         songLoaded = true;
         songLoading = false;
         ui->messageBox->append("song -> there was 'stop'' in the packet!");
+        ui->messageBox->append("song size is : " + QString::number(songData->size()));
+
     }
     if (songLoading) {
         songData->append(dataRec);
@@ -172,6 +188,7 @@ void ClientWindow::dataAvailable() {
 
 void ClientWindow::updatePlaylist(QByteArray playlistData) {
     if (playlistData.contains("<playlist>") && playlistData.contains("<end_playlist>")) {
+
         int plLen = playlistData.indexOf("<end_playlist>") - playlistData.indexOf("<playlist>") - sizeof("<playlist>");
         auto playlist = playlistData.mid(playlistData.indexOf("<playlist>") + sizeof("<playlist>") - 1, plLen);
         QStringList songs = QString::fromUtf8(playlist).split('<', QString::SkipEmptyParts);
@@ -263,7 +280,7 @@ void ClientWindow::createAudioOutput() {
 void ClientWindow::selectWavFile() {
     auto fileName = QFileDialog::getOpenFileName(this, tr("Open File"),
                                                     "/home",
-                                                    tr("Music (*.wav)"));
+                                                    tr("Music (*.wav *.mp3)"));
     ui->fileNameInput->setText(fileName);
 }
 

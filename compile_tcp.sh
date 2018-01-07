@@ -6,4 +6,4 @@ then
 	exit 1
 fi
 
-./tcp_server ${1-12345} ${2-duck.wav}
+./tcp_server ${1-12345} ${2-"Rick - Never Gonna Give You Up.mp3"}

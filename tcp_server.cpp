@@ -121,9 +121,14 @@ int main(int argc, char ** argv){
 	// wczytanie wszystkiego do bufora :)
 	char *buffer = new char[fileSize]{};
 	myFile.read(buffer, fileSize);
-	printf("%s read! \n", fileName);
-	myFile.close();
-
+	if (myFile) {
+		printf("%s read! \n", fileName);
+		myFile.close();
+	}
+	else {
+		printf("Troubles reading a song.\n");
+	}
+	
 /****************************/
 
 	// prowizoryczne znaczniki start i koniec przesylania
@@ -225,7 +230,8 @@ void receiveDataFromClient(int sock) {
 				clientsFileName = std::string(getFn);
 			}
 			
-			sdStart = strstr(buffer, songDataStart);
+			// sdStart = strstr(buffer, songDataStart);
+			sdStart = snEnd + sizeof(songNameEnd);
 			
 			if (snEnd!=nullptr && sdStart != nullptr) {
 				
@@ -328,10 +334,6 @@ std::string getPlayListString() {
 		result += "<" + std::to_string(counter++) + ":";
 		result += fileNamesDict[fileNames[i]] + ":" + playList[fileNames[i]];
 	}
-	/*for (it = playList.begin(); it != playList.end(); it++) {
-		result += "<" + std::to_string(counter++) + ":";
-		result += fileNamesDict[it->first] + ":" + it->second;
-	}*/
 	
 	return result;
 	

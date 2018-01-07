@@ -217,6 +217,19 @@
      <string>Push Me! :)</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="firePlaylistButton">
+    <property name="geometry">
+     <rect>
+      <x>270</x>
+      <y>340</y>
+      <width>241</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>FIRE! (playlist)</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">

@@ -47,6 +47,7 @@ public:
     void sendSongToServer();
 
     void pushMeButtonClicked();
+    void startPlaylist();
 
     QAudioFormat getStdAudioFormat();
 
