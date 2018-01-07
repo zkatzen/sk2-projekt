@@ -188,6 +188,7 @@ void receiveDataFromClient(int sock) {
 	char buffer[4096]; // tu może więcej gazu
 	int bytesTotal = 0, bytesRead, bytesSong = 0;
 	char *snStart, *snEnd, *sdStart;
+	double songDuration = 0.0;
 	
 	char songNameStart[] = "fn:";
 	char songNameEnd[] = ".wav";
@@ -230,8 +231,8 @@ void receiveDataFromClient(int sock) {
 				clientsFileName = std::string(getFn);
 			}
 			
-			// sdStart = strstr(buffer, songDataStart);
-			sdStart = snEnd + sizeof(songNameEnd);
+			sdStart = strstr(buffer, songDataStart);
+			//sdStart = snEnd + sizeof(songNameEnd);
 			
 			if (snEnd!=nullptr && sdStart != nullptr) {
 				
@@ -240,6 +241,8 @@ void receiveDataFromClient(int sock) {
 				
 				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (int)((sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1))); // jaaa...
 				songSize = atoi(songS);
+				songDuration = (double) songSize/(44100.0 * 2.0 * (16.0/8.0));
+				printf("Song duration: %f\n", songDuration);
 				printf("creating new file... ");
 				
 				char fN[] = "songXXXXXX.wav";
