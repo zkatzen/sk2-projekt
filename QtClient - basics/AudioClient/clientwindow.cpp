@@ -89,7 +89,7 @@ void ClientWindow::startLoadedAudio() {
             buffer->open(QIODevice::ReadOnly);
 
             qmp->setMedia(QMediaContent(), buffer);
-            qmp->play();
+
 
         }
     }
@@ -175,9 +175,27 @@ void ClientWindow::dataAvailable() {
         int posPos = dataRec.indexOf("^POS^");
         dataRec = dataRec.mid(posPos + sizeof("^POS^"));
         ui->messageBox->append(dataRec);
-        qint64 setMiliFromStart = dataRec::toLongLong();
 
-        qmp->setPosition(setMiliFromStart);
+        QDataStream ds(dataRec);
+        int setMiliFromStart;// = dataRec::toLongLong();
+        ds >> setMiliFromStart;
+        auto tim = dataRec.toInt();
+        auto l = QStringLiteral("%1").arg( tim);
+        ui->messageBox->append(l);
+
+        if(tim == 0) {
+            ui->messageBox->append("tim 0???");
+            QBuffer *buffer = new QBuffer(qmp);
+            buffer->setData(*songData);
+            buffer->open(QIODevice::ReadOnly);
+
+            qmp->setMedia(QMediaContent(), buffer);
+            qmp->play();
+        }
+        else {
+            qmp->setPosition(tim*1000);
+        }
+
 
     }
     if (songLoading) {
