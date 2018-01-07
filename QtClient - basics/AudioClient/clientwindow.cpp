@@ -30,6 +30,8 @@ void ClientWindow::startPlaylist() {
     if (ui->playlistWidget->rowCount() > 0) {
         // there's somethin' on a playlist
         socket->write("^START_PLAYLIST^");
+
+
     }
 }
 
@@ -165,6 +167,17 @@ void ClientWindow::dataAvailable() {
         songLoading = false;
         ui->messageBox->append("song -> there was 'stop'' in the packet!");
         ui->messageBox->append("song size is : " + QString::number(songData->size()));
+
+    }
+    //przesuwanie piosenki do pozycji od serwera
+    //SPRAWDZIC CZY TO DZIALA!
+    if(dataRec.contains("^POS^")) {
+        int posPos = dataRec.indexOf("^POS^");
+        dataRec = dataRec.mid(posPos + sizeof("^POS^"));
+        ui->messageBox->append(dataRec);
+        qint64 setMiliFromStart = dataRec::toLongLong();
+
+        qmp->setPosition(setMiliFromStart);
 
     }
     if (songLoading) {
