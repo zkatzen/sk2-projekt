@@ -101,14 +101,14 @@ void ClientWindow::playFromServer() {
     if (songLoaded) {
 
         QBuffer *buffer = new QBuffer(qmp);
-        buffer->setData(songData->data());
+        buffer->setData(*songData);
         buffer->open(QIODevice::ReadOnly);
 
         qmp->setMedia(QMediaContent(), buffer);
 
         QFile file("test.wav");
         file.open(QIODevice::WriteOnly);
-        file.write(songData->data());
+        file.write(songData->data(), songData->size());
         file.close();
 
         qmp->play();
