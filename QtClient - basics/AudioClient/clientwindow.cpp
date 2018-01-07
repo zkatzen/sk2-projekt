@@ -18,6 +18,19 @@ ClientWindow::ClientWindow(QWidget *parent) :
     connect(ui->serverPlayButton, &QPushButton::clicked, this, &ClientWindow::playFromServer);
     connect(ui->sendButton, &QPushButton::clicked, this, &ClientWindow::sendSongToServer);
 
+    connect(ui->pushMeButton, &QPushButton::clicked, this, &ClientWindow::pushMeButtonClicked);
+
+}
+
+void ClientWindow::pushMeButtonClicked() {
+    /*if (audioOut->state() == QAudio::ActiveState) {
+        auto secs = audioOut->elapsedUSecs();
+        ui->messageBox->append("audioOut->elapsedUSecs() = " + QString::number(secs));
+    }*/
+    if (qmp->state() == QMediaPlayer::PlayingState) {
+        auto pos = qmp->position();
+        ui->messageBox->append("qmp->songPosition() = " + QString::number(pos));
+    }
 }
 
 void ClientWindow::closeEvent(QCloseEvent *event) {
@@ -58,11 +71,25 @@ void ClientWindow::startLoadedAudio() {
     if (audioOut) {
         if (dataFromFile.size() != 0) {
             // plik wczytany do dataFromFile
-            QBuffer *buffer = new QBuffer(&dataFromFile);
+
+            qmp = new QMediaPlayer(this);
+            qmp->setAudioRole(QAudio::MusicRole);
+            //connect(qmp, SIGNAL(&QMediaPlayer::positionChanged(qint64)),
+            //        this, SLOT(&ClientWindow::positionChanged(qint64)));
+
+            QBuffer *buffer = new QBuffer(qmp);
+            buffer->setData(dataFromFile);
             buffer->open(QIODevice::ReadOnly);
-            audioOut->start(buffer);
+
+            qmp->setMedia(QMediaContent(), buffer);
+            qmp->play();
+
         }
     }
+}
+
+void ClientWindow::positionChanged(qint64 progress) {
+    ;
 }
 
 void ClientWindow::playFromServer() {
@@ -95,7 +122,8 @@ void ClientWindow::doConnect() {
 }
 
 void ClientWindow::audioStahp() {
-    audioOut->stop();
+    // audioOut->stop();
+    qmp->stop();
 }
 
 void ClientWindow::connSucceeded() {

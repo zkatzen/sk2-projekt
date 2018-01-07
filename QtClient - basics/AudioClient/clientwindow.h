@@ -15,6 +15,9 @@
 #include <QByteArray>
 
 #include <QCloseEvent>
+#include <thread>
+
+#include <QMediaPlayer>
 
 namespace Ui {
 class ClientWindow;
@@ -43,6 +46,8 @@ public:
     void startLoadedAudio();
     void sendSongToServer();
 
+    void pushMeButtonClicked();
+
     QAudioFormat getStdAudioFormat();
 
     void someError(QTcpSocket::SocketError);
@@ -54,8 +59,11 @@ public:
     QAudioOutput *audioOut = 0;
     QAudioInput *audioIn = 0;
 
+    QMediaPlayer *qmp = 0;
+
     QFile sourceFile;
     QString loadedFileName;
+
     QByteArray dataFromFile;
     QByteArray *songData;
 
@@ -70,6 +78,7 @@ private:
 private slots:
     void handleStateAudioOutChanged(QAudio::State newState);
     void handleStateAudioInChanged(QAudio::State newState);
+    void positionChanged(qint64 progress);
 
 };
 
