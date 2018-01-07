@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <cstdio>
+
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
@@ -25,6 +26,10 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+
+// 10 seconds
+const struct timespec interval = { 2, 0 };
 
 // server socket
 int servFd;
@@ -71,6 +76,9 @@ void updatePlaylistInfo();
 void broadcastSong(int socket, std::string filename);
 
 int getFileSize(std::ifstream &file); 
+double getSongDuration(int songsize);
+
+int countDigits(int number);
 
 int main(int argc, char ** argv){
 	// get and validate port number
@@ -253,8 +261,9 @@ void receiveDataFromClient(int sock) {
 				
 				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (int)((sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1))); // jaaa...
 				songSize = atoi(songS);
+				
 				songDuration = (double) songSize/(44100.0 * 2.0 * (16.0/8.0));
-				printf("Song duration: %f\n", songDuration);
+				
 				printf("creating new file... ");
 				
 				char fN[] = "songXXXXXX.wav";
@@ -323,6 +332,10 @@ void sendNewDataToClient(int sock) {
 	sendPlaylistInfo(sock, getPlayListString());
 }
 
+double getSongDuration(int songsize) {
+	return (double) songsize/(44100.0 * 2.0 * (16.0/8.0));
+}
+
 void updatePlaylistInfo() {
 	std::string playlist = getPlayListString();
 	if (playlist.length() == 0) {
@@ -361,9 +374,9 @@ void sendPlaylistInfo(int sock, std::string plString) {
 
 	std::string dataStr = "<playlist>" + plString + "<end_playlist>";
 	
-	if (plString.length() == 0) {
+	/*if (plString.length() == 0) {
 		return;
-	}
+	}*/
 	
 	int plSize = dataStr.length();
 
@@ -372,7 +385,7 @@ void sendPlaylistInfo(int sock, std::string plString) {
 	data[plSize] = '\0';
 	
 	int writeRes = write(sock, data, sizeof(data));
-	// printf("wrote with result %d to socket %d, playlist %s\n", writeRes, sock, data);
+	printf("wrote with result %d to socket %d, playlist %s\n", writeRes, sock, data);
 	if (writeRes == -1) {
 		checkClientFd(sock);
 		return;
@@ -392,6 +405,12 @@ int getFileSize(std::ifstream &file) {
 }
 
 void broadcastSong(int socket, std::string filename) {
+	
+	//std::string posMsgStr = "^POS^";
+	
+	char positionMsg[] = "^POS^";
+	char endPosMsg[] = "^END_POS^";
+	
 	std::ifstream myFile (filename, std::ios::in | std::ios::binary);
 	int fileSize = getFileSize(myFile);
 	
@@ -401,7 +420,6 @@ void broadcastSong(int socket, std::string filename) {
 		printf("Could not determine %s's size ", filename.c_str());
 
 
-	// wczytanie wszystkiego do bufora :)
 	char *buffer = new char[fileSize]{};
 	myFile.read(buffer, fileSize);
 	if (myFile) {
@@ -410,7 +428,42 @@ void broadcastSong(int socket, std::string filename) {
 	}
 	else
 		printf("Troubles reading %s.\n", filename.c_str());
+		
+    double songLen = getSongDuration(fileSize);
+    double intervalsCount = songLen / (interval.tv_sec + interval.tv_nsec * 0.0000000001);
+    
+	char posStr[] = {'0', '\0'};
+    
+    for (int i = 0; i < intervalsCount; i++) {
+		
+		write(socket, positionMsg, sizeof(positionMsg));
+		printf("%s", positionMsg);
+		
+		int currentInterv = i * interval.tv_sec;
+		
+		if (currentInterv != 0) {
+			int dig = countDigits(currentInterv);
+			printf("%d, %d\n", currentInterv, dig);
+			char posStr[dig + 1];
+			sprintf(posStr, "%d", currentInterv);
+			posStr[dig] = '\0';
+		}
+		
+		write(socket, posStr, sizeof(posStr));
+		printf("%s\n", posStr);
+		
+		nanosleep(&interval, NULL);
+	}
 	
+}
+
+int countDigits(int n) {
+	int count = 0;
+	while (n != 0) {
+		n /= 10;
+		count++;
+	}
+	return count;  
 } 
 
 void checkClientFd(int sock) {
