@@ -68,6 +68,9 @@ void checkClientFd(int sock);
 std::string getPlayListString();
 
 void updatePlaylistInfo();
+void broadcastSong(int socket, std::string filename);
+
+int getFileSize(std::ifstream &file); 
 
 int main(int argc, char ** argv){
 	// get and validate port number
@@ -107,7 +110,7 @@ int main(int argc, char ** argv){
 		return -1;
 	}
 
-	std::ifstream myFile (fileName, std::ios::in | std::ios::binary);
+	std::ifstream myFile(fileName, std::ios::in | std::ios::binary);
 	if (myFile.is_open()) {
 		
 		// get rozmiar pliku v2
@@ -195,6 +198,8 @@ void receiveDataFromClient(int sock) {
 	
 	char byeMsg[] = "^bye^";
 	
+	char playlistFire[] = "^START_PLAYLIST^";
+	
 	while (1) {
 		
 		// <???>
@@ -218,6 +223,15 @@ void receiveDataFromClient(int sock) {
 				break;
 			}
 			
+			char* plCheck = strstr(buffer, playlistFire);
+			if (plCheck != nullptr) {
+				if (fileNames.size() > 0) {
+					std::string firstSong = fileNames.at(0);
+					broadcastSong(sock, firstSong);		
+				}
+				continue; // ?
+			}
+			
 			snStart = strstr(buffer, songNameStart); // przydałoby się czyścić bufor
 			if( snStart != nullptr) {
 				//printf("\n'songNameStart' found:\n%s\n", snStart + sizeof(songNameStart) - 1);				
@@ -230,8 +244,8 @@ void receiveDataFromClient(int sock) {
 				clientsFileName = std::string(getFn);
 			}
 			
-			// sdStart = strstr(buffer, songDataStart);
-			sdStart = snEnd + sizeof(songNameEnd);
+			sdStart = strstr(buffer, songDataStart);
+			// sdStart = snEnd + sizeof(songNameEnd) -1;
 			
 			if (snEnd!=nullptr && sdStart != nullptr) {
 				
@@ -364,6 +378,39 @@ void sendPlaylistInfo(int sock, std::string plString) {
 	}
 
 }
+
+int getFileSize(std::ifstream &file) {
+	int result = -1;
+	if (file.is_open()) {
+		// get rozmiar pliku
+		file.seekg (0, file.end);
+		result = file.tellg();
+		file.seekg (0, file.beg);
+	}
+	return result;
+}
+
+void broadcastSong(int socket, std::string filename) {
+	std::ifstream myFile (filename, std::ios::in | std::ios::binary);
+	int fileSize = getFileSize(myFile);
+	
+	if (fileSize > 0)
+		printf("File %s opened, size: %d bytes\n", filename.c_str(), fileSize);
+	else 
+		printf("Could not determine %s's size ", filename.c_str());
+
+
+	// wczytanie wszystkiego do bufora :)
+	char *buffer = new char[fileSize]{};
+	myFile.read(buffer, fileSize);
+	if (myFile) {
+		printf("%s read! \n", filename.c_str());
+		myFile.close();
+	}
+	else
+		printf("Troubles reading %s.\n", filename.c_str());
+	
+} 
 
 void checkClientFd(int sock) {
 	printf("! got error when writing to %d fd : %s\n", sock, strerror(errno));
