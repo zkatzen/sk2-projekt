@@ -29,7 +29,7 @@
 #include <time.h>
 
 // 10 seconds
-const struct timespec interval = { 2, 0 };
+const struct timespec interval = { 1, 0 };
 
 // server socket
 int servFd;
@@ -430,7 +430,7 @@ void broadcastSong(int socket, std::string filename) {
 		printf("Troubles reading %s.\n", filename.c_str());
 		
     double songLen = getSongDuration(fileSize);
-    double intervalsCount = songLen / (interval.tv_sec + interval.tv_nsec * 0.0000000001);
+    double intervalsCount = songLen / (interval.tv_sec); //na razie brak nanosekund
     
 	char posStr[] = {'0', '\0'};
     
