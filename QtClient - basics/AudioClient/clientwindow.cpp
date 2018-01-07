@@ -30,7 +30,7 @@ void ClientWindow::startPlaylist() {
     if (ui->playlistWidget->rowCount() > 0) {
         // there's somethin' on a playlist
         socket->write("^START_PLAYLIST^");
-
+        qmp->play();
 
     }
 }
@@ -175,8 +175,10 @@ void ClientWindow::dataAvailable() {
         int posPos = dataRec.indexOf("^POS^");
         dataRec = dataRec.mid(posPos + sizeof("^POS^"));
         ui->messageBox->append(dataRec);
-        qint64 setMiliFromStart = dataRec::toLongLong();
 
+        QDataStream ds(dataRec);
+        qint64 setMiliFromStart;// = dataRec::toLongLong();
+        ds >> setMiliFromStart;
         qmp->setPosition(setMiliFromStart);
 
     }
