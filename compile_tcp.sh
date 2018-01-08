@@ -6,4 +6,4 @@ then
 	exit 1
 fi
 
-./tcp_server ${1-12345} ${2-"Kenny_And_The_Scots_-_I_Would_Walk_500_Miles.wav"}
+./tcp_server ${1-12345} ${2-duck.wav}

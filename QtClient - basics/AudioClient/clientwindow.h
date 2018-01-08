@@ -18,6 +18,7 @@
 #include <thread>
 
 #include <QMediaPlayer>
+#include <QAudioBuffer>
 
 namespace Ui {
 class ClientWindow;
@@ -47,7 +48,8 @@ public:
     void sendSongToServer();
 
     void pushMeButtonClicked();
-    void startPlaylist();
+    void startPlaylistRequest();
+    void stopPlaylistRequest();
 
     QAudioFormat getStdAudioFormat();
 
@@ -57,10 +59,10 @@ public:
 
     QTcpSocket *socket = nullptr;
 
-    QAudioOutput *audioOut = 0;
-    QAudioInput *audioIn = 0;
+    QAudioOutput *audioOut = nullptr;
+    QAudioInput *audioIn = nullptr;
 
-    QMediaPlayer *qmp = 0;
+    QMediaPlayer *qmp = nullptr;
 
     QFile sourceFile;
     QString loadedFileName;
@@ -72,6 +74,12 @@ public:
     bool connectedToServer = false;
     bool songLoading = false;
 
+    bool playlistOn = false;
+
+    const QByteArray *songStartMsg = new QByteArray("^START^");
+    const QByteArray *songStopMsg = new QByteArray("^STOP^");
+    const QByteArray *playlistStartMsg = new QByteArray("^START_PLAYLIST^");
+    const QByteArray *playlistStopMsg = new QByteArray("^STOP_PLAYLIST^");
 
 private:
     Ui::ClientWindow *ui;

@@ -19,19 +19,25 @@ ClientWindow::ClientWindow(QWidget *parent) :
     connect(ui->sendButton, &QPushButton::clicked, this, &ClientWindow::sendSongToServer);
 
     connect(ui->pushMeButton, &QPushButton::clicked, this, &ClientWindow::pushMeButtonClicked);
-    connect(ui->firePlaylistButton, &QPushButton::clicked, this, &ClientWindow::startPlaylist);
+    connect(ui->firePlaylistButton, &QPushButton::clicked, this, &ClientWindow::startPlaylistRequest);
+    connect(ui->stopPlaylistButton, &QPushButton::clicked, this, &ClientWindow::stopPlaylistRequest);
 
     qmp = new QMediaPlayer(this);
     qmp->setAudioRole(QAudio::MusicRole);
 
 }
 
-void ClientWindow::startPlaylist() {
+void ClientWindow::startPlaylistRequest() {
     if (ui->playlistWidget->rowCount() > 0) {
         // there's somethin' on a playlist
-        socket->write("^START_PLAYLIST^");
+        socket->write(*playlistStartMsg);
+    }
+}
 
-
+void ClientWindow::stopPlaylistRequest() {
+    QAudio::State s = audioOut->state();
+    if (s == QAudio::ActiveState || s == QAudio::SuspendedState || s == QAudio::IdleState) {
+        socket->write(*playlistStopMsg);
     }
 }
 
@@ -70,7 +76,8 @@ void ClientWindow::sendSongToServer() {
         // wysylanie rozmiaru pliku, w odpowiednim formacie
         socket->write(QByteArray::number(sourceFile.size(), 10));
         socket->write(dataFromFile);
-        ui->messageBox->append("\nsent " + loadedFileName + " file to server (or attempted to ;))");
+        ui->messageBox->append("\nSent " + loadedFileName + " file to server (or attempted to ;)), file size was " +
+                               QString::number(sourceFile.size()));
 
     }
 }
@@ -80,18 +87,17 @@ void ClientWindow::startLoadedAudio() {
     if (qmp) {
         if (dataFromFile.size() != 0) {
             // plik wczytany do dataFromFile
-
-            //connect(qmp, SIGNAL(&QMediaPlayer::positionChanged(qint64)),
-            //        this, SLOT(&ClientWindow::positionChanged(qint64)));
-
             QBuffer *buffer = new QBuffer(qmp);
             buffer->setData(dataFromFile);
             buffer->open(QIODevice::ReadOnly);
 
             qmp->setMedia(QMediaContent(), buffer);
-
+            qmp->play();
 
         }
+    }
+    else {
+        ui->messageBox->append("No data found to be played. :c");
     }
 }
 
@@ -100,15 +106,22 @@ void ClientWindow::positionChanged(qint64 progress) {
 }
 
 void ClientWindow::playFromServer() {
-    if (songLoaded) {
 
-        QBuffer *buffer = new QBuffer(qmp);
-        buffer->setData(*songData);
-        buffer->open(QIODevice::ReadOnly);
+    if (playlistOn && (songLoading || songLoaded)) {
+        if (songData->size() > 44) { // no tyle, to ma naglowek, iks de
 
-        qmp->setMedia(QMediaContent(), buffer);
-        qmp->play();
+            if (audioOut->state() == QAudio::StoppedState) {
+                QBuffer *buffer = new QBuffer();
+                buffer->setBuffer(songData);
+                buffer->open(QIODevice::ReadWrite);
 
+                audioOut = new QAudioOutput(ClientWindow::getStdAudioFormat(), this);
+                audioOut->start(buffer);
+                ui->messageBox->append("AudioOut started...");
+            }
+            if (audioOut->state() == QAudio::SuspendedState)
+                audioOut->resume();
+        }
     }
     else {
         return;
@@ -120,19 +133,23 @@ void ClientWindow::doConnect() {
     auto host = ui->destAddr->text();
     auto port = ui->portNumber->value();
 
-    socket = new QTcpSocket(this);
+    if (socket == nullptr) {
+        socket = new QTcpSocket(this);
 
-    connect(socket, &QTcpSocket::connected, this, &ClientWindow::connSucceeded);
-    connect(socket, &QTcpSocket::readyRead, this, &ClientWindow::dataAvailable);
-    connect(socket, (void (QTcpSocket::*) (QTcpSocket::SocketError))
-            &QTcpSocket::error, this, &ClientWindow::someError);
+        connect(socket, &QTcpSocket::connected, this, &ClientWindow::connSucceeded);
+        connect(socket, &QTcpSocket::readyRead, this, &ClientWindow::dataAvailable);
+        connect(socket, (void (QTcpSocket::*) (QTcpSocket::SocketError))
+                &QTcpSocket::error, this, &ClientWindow::someError);
 
-    socket->connectToHost(host, port);
+        socket->connectToHost(host, port);
+    }
 }
 
 void ClientWindow::audioStahp() {
-    // audioOut->stop();
-    qmp->stop();
+    if (audioOut->state() == QAudio::ActiveState)
+        audioOut->suspend();
+    if (audioOut->state() == QAudio::IdleState)
+        audioOut->stop();
 }
 
 void ClientWindow::connSucceeded() {
@@ -148,66 +165,48 @@ void ClientWindow::dataAvailable() {
 
     auto dataRec = socket->readAll();
 
-    // SONG
-    if (dataRec.contains("start")) {
-        songLoading = true;
-        int startPos = dataRec.indexOf("start");
-        dataRec = dataRec.mid(startPos + sizeof("start"));
-        ui->messageBox->append("song -> there was 'start'' in the packet!");
-        ui->messageBox->append(dataRec);
+    // PLAYLIST
+    if (dataRec.contains("<playlist>")) {
+        this->updatePlaylist(dataRec);
+        return; // ?
     }
-    else if (dataRec.contains("stop")) {
-        int stopPos = dataRec.indexOf("stop");
+
+    if (dataRec.contains(*playlistStartMsg)) {
+        playlistOn = true;
+        return; // ?
+    }
+
+    if (dataRec.contains(*playlistStopMsg)) {
+        this->audioStahp();
+        playlistOn = false;
+        return; // ?
+    }
+
+    // SONG
+    if (dataRec.contains(*songStartMsg)) {
+        songLoading = true;
+        int startPos = dataRec.indexOf(*songStartMsg);
+        dataRec = dataRec.mid(startPos + sizeof(songStartMsg));
+        ui->messageBox->append("Song -> there was 'Song Start'' in the packet!");
+    }
+    else if (dataRec.contains(*songStopMsg)) {
+        int stopPos = dataRec.indexOf(*songStopMsg);
         if (stopPos > 0) {
             dataRec.truncate(stopPos);
             songData->append(dataRec);
         }
-
         songLoaded = true;
         songLoading = false;
-        ui->messageBox->append("song -> there was 'stop'' in the packet!");
-        ui->messageBox->append("song size is : " + QString::number(songData->size()));
-
+        ui->messageBox->append("Song -> there was 'Song Stop'' in the packet!");
+        ui->messageBox->append("Server song size is : " + QString::number(songData->size()));
     }
-    //przesuwanie piosenki do pozycji od serwera
-    //SPRAWDZIC CZY TO DZIALA!
-    if(dataRec.contains("^POS^")) {
-        int posPos = dataRec.indexOf("^POS^");
-        dataRec = dataRec.mid(posPos + sizeof("^POS^"));
-        ui->messageBox->append(dataRec);
 
-        QDataStream ds(dataRec);
-        int setMiliFromStart;// = dataRec::toLongLong();
-        ds >> setMiliFromStart;
-        auto tim = dataRec.toInt();
-        auto l = QStringLiteral("%1").arg( tim);
-        ui->messageBox->append(l);
-
-        if(tim == 0) {
-            ui->messageBox->append("tim 0???");
-            QBuffer *buffer = new QBuffer(qmp);
-            buffer->setData(*songData);
-            buffer->open(QIODevice::ReadOnly);
-
-            qmp->setMedia(QMediaContent(), buffer);
-            qmp->play();
-        }
-        else {
-            qmp->setPosition(tim*1000);
-        }
-
-
-    }
     if (songLoading) {
         songData->append(dataRec);
+        if (songData->size() > 44)
+            this->playFromServer();
+        // ui->messageBox->append("Song -> received " + QString::number(dataRec.size()) + " bytes!");
     }
-
-    // PLAYLIST
-    if (dataRec.contains("<playlist>")) {
-        this->updatePlaylist(dataRec);
-    }
-
-    //ui->messageBox->append(QString::number(dataRec.size()));
 
 }
 
@@ -254,7 +253,6 @@ void ClientWindow::handleStateAudioInChanged(QAudio::State newState) {
 }
 
 void ClientWindow::handleStateAudioOutChanged(QAudio::State newState) {
-    QMessageBox::information(this, "Well...", "State changed! to " + QString::number(newState));
 
     switch (newState) {
         case QAudio::IdleState:
