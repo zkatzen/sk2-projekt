@@ -32,7 +32,7 @@
 #include <algorithm>
 
 // 10 seconds
-const struct timespec interval = { 0, 1000 };
+const struct timespec interval = { 0, 18140 };
 
 // prowizoryczne znaczniki start i koniec przesylania
 char start_msg[] = "^START^";
@@ -52,11 +52,15 @@ char playlistStop[] = "^STOP_PLAYLIST^";
 bool playlistOn = false;
 char *dataBuffer;
 
+std::string currFilename;
+int currentPlaying = 0;
 // server socket
 int servFd;
+int servFdMsg;
 
 // client sockets
 std::vector<int> clientFds;
+std::vector<int> clientFdsMsg;
 
 // client threads
 std::vector<std::thread> clientThreads;
@@ -101,7 +105,7 @@ char* getFileData(std::ifstream &file);
 double getSongDuration(int songsize);
 
 int countDigits(int number);
-void sendSongToClient(char *filename, int sock); 
+void sendSongToClient(); 
 char* getFileData(std::ifstream &file);
 // char* getFileData(FILE **f);
 
@@ -111,12 +115,13 @@ void playlistStopNotify();
 
 int main(int argc, char **argv){
 	// get and validate port number
-	if(argc != 3) error(1, 0, "Need 2 args: port + filename");
+	if(argc != 4) error(1, 0, "Need 3 args: port + filename + port");
 	auto port = readPort(argv[1]);
-	
+	auto portMsg = readPort(argv[3]);
 	// create socket
 	servFd = socket(AF_INET, SOCK_STREAM, 0);
-	if(servFd == -1) error(1, errno, "socket failed");
+        servFdMsg = socket(AF_INET, SOCK_STREAM, 0);
+	if(servFd == -1 or servFdMsg == -1) error(1, errno, "socket failed");
 	
 	// graceful ctrl+c exit
 	signal(SIGINT, ctrl_c);
@@ -124,7 +129,8 @@ int main(int argc, char **argv){
 	signal(SIGPIPE, SIG_IGN);
 	
 	setReuseAddr(servFd);
-	
+	setReuseAddr(servFdMsg);
+        
 	// bind to any address and port provided in arguments
 	sockaddr_in serverAddr{.sin_family=AF_INET, .sin_port=htons((short)port), .sin_addr={INADDR_ANY}};
 	int res = bind(servFd, (sockaddr*) &serverAddr, sizeof(serverAddr));
@@ -133,14 +139,22 @@ int main(int argc, char **argv){
 	// enter listening mode
 	res = listen(servFd, 1);
 	if(res) error(1, errno, "listen failed");
-	
+        
+        //again for port for special messages
+        sockaddr_in serverAddrMsg{.sin_family=AF_INET, .sin_port=htons((short)portMsg), .sin_addr={INADDR_ANY}};
+	res = bind(servFdMsg, (sockaddr*) &serverAddrMsg, sizeof(serverAddrMsg));
+	if(res) error(1, errno, "bind failed");
+	res = listen(servFdMsg, 1);
+	if(res) error(1, errno, "listen failed");
+        
 	/*const char *fileName = argv[2];
 	std::ifstream myFile (fileName, std::ios::in | std::ios::binary);
 	int fileSize = getFileSize(myFile);
 	char *buffer = getFileData(myFile);*/
 
 /****************************/
-	
+	std::thread br(sendSongToClient);
+        br.detach();
 	while(true) {
 
 		// prepare placeholders for client address
@@ -169,12 +183,19 @@ int main(int argc, char **argv){
 	
 }
 
-void sendSongToClient(char *filename, int sock) {
-	; // nothin'...
-}
 
 void receiveDataFromClient(int sock) {
 	
+        sockaddr_in clientAddr{0};
+        socklen_t clientAddrSize = sizeof(clientAddr);
+
+	auto clientFdMsg = accept(servFdMsg, (sockaddr*) &clientAddr, &clientAddrSize);
+	if (clientFdMsg == -1) error(1, errno, "accept failed");
+
+	clientFdsMsg.push_back(clientFdMsg);
+
+	printf("! New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFdMsg);
+    
 	int fileFd = -1;
 	int bytesWritten;
 	
@@ -216,17 +237,18 @@ void receiveDataFromClient(int sock) {
 					if (fileNames.size() > 0) { // są piosenki
 						
 						std::string firstSong = fileNames.at(0);
+                                                currFilename = fileNames.at(0);
+                                                
 						playlistOn = true;
 						playlistStartNotify();
 						
-						std::thread tt(broadcastToAll, firstSong);	
-						tt.detach();
-						
-					}
+						//std::thread tt(broadcastToAll, firstSong);	
+						//tt.detach();
+                                                
 				}
 				continue; // ?
-			}
-			
+                            }
+                        }
 			char* plStopCheck = strstr(buffer, playlistStop);
 			if (plStopCheck != nullptr) { // otrzymano STOP PLAYLIST
 				if (playlistOn) { // playlista ' leci'
@@ -342,7 +364,7 @@ void updatePlaylistInfo() {
 		sendPlaylistInfo(clientFds[i], playlist);
 	}
 	printf("Playlist -> all clients updated\n");
-};
+}
 
 std::string getPlayListString() {
 	
@@ -415,6 +437,74 @@ char* getFileData(std::ifstream &file) {
 	return buffer;
 }
 
+void sendSongToClient() {
+    printf("Hello, I'll be broadcasting.\n");
+    unsigned int clientsCount = 0;
+    int chunkSize = 32;
+    int headerSize = 44; // tak naprawdę to 44
+    int i, chunksCount;
+    char *buffer = NULL;
+    char header[headerSize];
+    char dataChunk[chunkSize];
+    while(1) {
+        while(playlistOn) {
+            if(currentPlaying == 0) {
+                std::ifstream myFile (currFilename, std::ios::in | std::ios::binary);
+                int fileSize = getFileSize(myFile);
+                buffer = getFileData(myFile);	
+                printf("Broadcasting song %s!\n", currFilename.c_str());
+
+                chunksCount = fileSize / chunkSize;
+                i = 0;
+                
+                
+            //songsize/(44100.0 * 2.0 * (16.0/8.0));
+                memcpy(header, buffer, headerSize);
+                buffer += headerSize;
+
+                printf("Sending start... chunksCount - %d\n", chunksCount);
+                for (unsigned int i = 0; i < clientFds.size(); i++) {	
+                    write(clientFds[i], start_msg, sizeof(start_msg));
+                    write(clientFds[i], header, headerSize);
+                }
+                nanosleep(&interval, NULL);
+                unsigned int clientsCount = clientFds.size();
+                currentPlaying = 1;
+                printf("song set\n");
+            }
+            else if (currentPlaying == 1) {
+                
+                 if (clientFds.size() > clientsCount) {
+                    // prowizorka max, jak mniej, to przypał...
+                    write(clientFds.back(), start_msg, sizeof(start_msg));
+                    write(clientFds.back(), header, headerSize);
+                    clientsCount = clientFds.size();
+                }
+                
+                 memcpy(dataChunk, buffer, chunkSize);
+                 buffer += chunkSize;
+            
+                for (unsigned int i = 0; i < clientFds.size(); i++) {
+                    write(clientFds[i], dataChunk, chunkSize);
+                }
+                nanosleep(&interval, NULL);
+                
+                i++;
+                
+            }
+            if (i == (chunksCount-1)) {
+                for (unsigned int i = 0; i < clientFds.size(); i++) {	
+                    write(clientFds[i], stop_msg, sizeof(stop_msg));
+                }
+                currentPlaying = 0;
+                buffer = NULL;
+            }
+            
+        }
+    }
+    
+}
+
 void broadcastToAll(std::string filename) {
 	
 	// SIGNAL? W przypadku zatrzymania playlisty! Coś jak ctrl+c, x itd.
@@ -430,7 +520,7 @@ void broadcastToAll(std::string filename) {
 	
 	char dataChunk[chunkSize];
 	char header[headerSize];
-	
+//songsize/(44100.0 * 2.0 * (16.0/8.0));
 	memcpy(header, buffer, headerSize);
 	buffer += headerSize;
 
@@ -440,7 +530,7 @@ void broadcastToAll(std::string filename) {
 		write(clientFds[i], start_msg, sizeof(start_msg));
 		write(clientFds[i], header, headerSize);
 	}
-	
+	nanosleep(&interval, NULL);
 	unsigned int clientsCount = clientFds.size();
 	for (int i = 0; i < chunksCount; i++) {
 		
@@ -469,7 +559,7 @@ void broadcastToAll(std::string filename) {
 	for (unsigned int i = 0; i < clientFds.size(); i++) {	
 		write(clientFds[i], stop_msg, sizeof(stop_msg));
 	}
-	
+	printf("ending\n");
 }
 
 void broadcastSong(int socket, std::string filename) {

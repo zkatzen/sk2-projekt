@@ -34,7 +34,9 @@ public:
     ~ClientWindow();
 
     void doConnect();
+    void doConnectMsg();
     void connSucceeded();
+    void msgAvailable();
     void dataAvailable();
     void sendData();
 
@@ -58,6 +60,7 @@ public:
     void updatePlaylist(QByteArray playlistData);
 
     QTcpSocket *socket = nullptr;
+    QTcpSocket *socketForMsg = nullptr;
 
     QAudioOutput *audioOut = nullptr;
     QAudioInput *audioIn = nullptr;

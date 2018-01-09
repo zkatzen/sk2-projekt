@@ -36,9 +36,9 @@ void ClientWindow::startPlaylistRequest() {
 
 void ClientWindow::stopPlaylistRequest() {
     QAudio::State s = audioOut->state();
-    if (s == QAudio::ActiveState || s == QAudio::SuspendedState || s == QAudio::IdleState) {
+    //if (s == QAudio::ActiveState || s == QAudio::SuspendedState || s == QAudio::IdleState) {
         socket->write(*playlistStopMsg);
-    }
+    //}
 }
 
 void ClientWindow::pushMeButtonClicked() {
@@ -118,6 +118,7 @@ void ClientWindow::playFromServer() {
                 audioOut = new QAudioOutput(ClientWindow::getStdAudioFormat(), this);
                 audioOut->start(buffer);
                 ui->messageBox->append("AudioOut started...");
+
             }
             if (audioOut->state() == QAudio::SuspendedState)
                 audioOut->resume();
@@ -136,13 +137,31 @@ void ClientWindow::doConnect() {
     if (socket == nullptr) {
         socket = new QTcpSocket(this);
 
-        connect(socket, &QTcpSocket::connected, this, &ClientWindow::connSucceeded);
+        connect(socket, &QTcpSocket::connected, this, &ClientWindow::doConnectMsg);
         connect(socket, &QTcpSocket::readyRead, this, &ClientWindow::dataAvailable);
         connect(socket, (void (QTcpSocket::*) (QTcpSocket::SocketError))
                 &QTcpSocket::error, this, &ClientWindow::someError);
 
         socket->connectToHost(host, port);
+
     }
+}
+
+void ClientWindow::doConnectMsg() {
+    int secretPort = 54321;
+      ui->messageBox->append("First connection succesfull");
+    if (socketForMsg == nullptr && socket != nullptr) {
+
+        socketForMsg = new QTcpSocket(this);
+
+        connect(socketForMsg, &QTcpSocket::connected, this, &ClientWindow::connSucceeded);
+        connect(socketForMsg, &QTcpSocket::readyRead, this, &ClientWindow::msgAvailable);
+        connect(socketForMsg, (void (QTcpSocket::*) (QTcpSocket::SocketError))
+                &QTcpSocket::error, this, &ClientWindow::someError);
+
+        socketForMsg->connectToHost(QHostAddress::LocalHost, secretPort);
+    }
+
 }
 
 void ClientWindow::audioStahp() {
@@ -153,12 +172,14 @@ void ClientWindow::audioStahp() {
 }
 
 void ClientWindow::connSucceeded() {
+    ui->messageBox->append("Second conn succefull!");
     ui->destAddr->setEnabled(false);
     songData = new QByteArray();
 
     this->connectedToServer = true;
     ui->sendButton->setEnabled(true);
     ui->serverPlayButton->setEnabled(true);
+    this->createAudioOutput();
 }
 
 void ClientWindow::dataAvailable() {
@@ -166,21 +187,6 @@ void ClientWindow::dataAvailable() {
     auto dataRec = socket->readAll();
 
     // PLAYLIST
-    if (dataRec.contains("<playlist>")) {
-        this->updatePlaylist(dataRec);
-        return; // ?
-    }
-
-    if (dataRec.contains(*playlistStartMsg)) {
-        playlistOn = true;
-        return; // ?
-    }
-
-    if (dataRec.contains(*playlistStopMsg)) {
-        this->audioStahp();
-        playlistOn = false;
-        return; // ?
-    }
 
     // SONG
     if (dataRec.contains(*songStartMsg)) {
@@ -199,6 +205,7 @@ void ClientWindow::dataAvailable() {
         songLoading = false;
         ui->messageBox->append("Song -> there was 'Song Stop'' in the packet!");
         ui->messageBox->append("Server song size is : " + QString::number(songData->size()));
+        //songData ->clear();
     }
 
     if (songLoading) {
@@ -206,6 +213,24 @@ void ClientWindow::dataAvailable() {
         if (songData->size() > 44)
             this->playFromServer();
         // ui->messageBox->append("Song -> received " + QString::number(dataRec.size()) + " bytes!");
+    }
+
+}
+
+void ClientWindow::msgAvailable() {
+    auto msgRec = socketForMsg->readAll();
+    if (msgRec.contains("<playlist>")) {
+        //this->updatePlaylist(dataRec);
+        //return; // ?
+    }
+    if (msgRec.contains(*playlistStartMsg)) {
+        playlistOn = true;
+        //return; // ?
+    }
+    if (msgRec.contains(*playlistStopMsg)) {
+        this->audioStahp();
+        playlistOn = false;
+        //return; // ?
     }
 
 }
@@ -319,7 +344,7 @@ void ClientWindow::loadWavFile() {
         QMessageBox::information(this, "Good news", "File open! <3");
     }
 
-    this->createAudioOutput();
+
     loadedFileName = fileNameWithPath.mid(fileNameWithPath.lastIndexOf('/')+1);
 
     sourceFile.open(QIODevice::ReadOnly);
