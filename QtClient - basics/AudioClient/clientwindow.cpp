@@ -28,16 +28,17 @@ ClientWindow::ClientWindow(QWidget *parent) :
 }
 
 void ClientWindow::startPlaylistRequest() {
+
     if (ui->playlistWidget->rowCount() > 0) {
         // there's somethin' on a playlist
-        socket->write(*playlistStartMsg);
+        socketForMsg->write(*playlistStartMsg);
     }
 }
 
 void ClientWindow::stopPlaylistRequest() {
     QAudio::State s = audioOut->state();
     //if (s == QAudio::ActiveState || s == QAudio::SuspendedState || s == QAudio::IdleState) {
-        socket->write(*playlistStopMsg);
+        socketForMsg->write(*playlistStopMsg);
     //}
 }
 
@@ -51,7 +52,8 @@ void ClientWindow::pushMeButtonClicked() {
 void ClientWindow::closeEvent(QCloseEvent *event) {
     // stuff
     if (connectedToServer) {
-        socket->write("^bye^");
+        socketForMsg->write("^GOOD_BYEEE^");
+        socketForMsg->disconnectFromHost();
         socket->disconnectFromHost();
     }
     QMessageBox::information(this, "(cries)", "Nevermind, I'll find someone like you (uuu)");
@@ -188,25 +190,6 @@ void ClientWindow::dataAvailable() {
 
     // PLAYLIST
 
-    // SONG
-    if (dataRec.contains(*songStartMsg)) {
-        songLoading = true;
-        int startPos = dataRec.indexOf(*songStartMsg);
-        dataRec = dataRec.mid(startPos + sizeof(songStartMsg));
-        ui->messageBox->append("Song -> there was 'Song Start'' in the packet!");
-    }
-    else if (dataRec.contains(*songStopMsg)) {
-        int stopPos = dataRec.indexOf(*songStopMsg);
-        if (stopPos > 0) {
-            dataRec.truncate(stopPos);
-            songData->append(dataRec);
-        }
-        songLoaded = true;
-        songLoading = false;
-        ui->messageBox->append("Song -> there was 'Song Stop'' in the packet!");
-        ui->messageBox->append("Server song size is : " + QString::number(songData->size()));
-        //songData ->clear();
-    }
 
     if (songLoading) {
         songData->append(dataRec);
@@ -220,7 +203,7 @@ void ClientWindow::dataAvailable() {
 void ClientWindow::msgAvailable() {
     auto msgRec = socketForMsg->readAll();
     if (msgRec.contains("<playlist>")) {
-        //this->updatePlaylist(dataRec);
+        this->updatePlaylist(msgRec);
         //return; // ?
     }
     if (msgRec.contains(*playlistStartMsg)) {
@@ -231,6 +214,17 @@ void ClientWindow::msgAvailable() {
         this->audioStahp();
         playlistOn = false;
         //return; // ?
+    }
+    if (msgRec.contains(*songStartMsg)) {
+        songLoading = true;
+        ui->messageBox->append("Song -> there was 'Song Start'' in the packet!");
+    }
+    else if (msgRec.contains(*songStopMsg)) {
+        songLoaded = true;
+        songLoading = false;
+        ui->messageBox->append("Song -> there was 'Song Stop'' in the packet!");
+        ui->messageBox->append("Server song size is : " + QString::number(songData->size()));
+        //songData ->clear();
     }
 
 }

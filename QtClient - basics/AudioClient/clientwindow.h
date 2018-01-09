@@ -79,10 +79,10 @@ public:
 
     bool playlistOn = false;
 
-    const QByteArray *songStartMsg = new QByteArray("^START^");
-    const QByteArray *songStopMsg = new QByteArray("^STOP^");
-    const QByteArray *playlistStartMsg = new QByteArray("^START_PLAYLIST^");
-    const QByteArray *playlistStopMsg = new QByteArray("^STOP_PLAYLIST^");
+    const QByteArray *songStartMsg = new QByteArray("^START_SONG^");
+    const QByteArray *songStopMsg = new QByteArray("^STOP_SONG^");
+    const QByteArray *playlistStartMsg = new QByteArray("^START_LIST^");
+    const QByteArray *playlistStopMsg = new QByteArray("^STOP_LIST^");
 
 private:
     Ui::ClientWindow *ui;
