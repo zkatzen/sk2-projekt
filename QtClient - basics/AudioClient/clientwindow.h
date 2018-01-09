@@ -10,7 +10,6 @@
 
 #include <QAudioOutput>
 #include <QAudioFormat>
-#include <QAudioInput>
 
 #include <QByteArray>
 
@@ -63,7 +62,6 @@ public:
     QTcpSocket *socketForMsg = nullptr;
 
     QAudioOutput *audioOut = nullptr;
-    QAudioInput *audioIn = nullptr;
 
     QMediaPlayer *qmp = nullptr;
 
@@ -89,7 +87,6 @@ private:
 
 private slots:
     void handleStateAudioOutChanged(QAudio::State newState);
-    void handleStateAudioInChanged(QAudio::State newState);
     void positionChanged(qint64 progress);
 
 };

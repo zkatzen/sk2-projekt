@@ -154,7 +154,8 @@ int main(int argc, char **argv){
 
 /****************************/
 	std::thread br(sendSongToClient);
-        br.detach();
+    br.detach();
+    
 	while(true) {
 
 		// prepare placeholders for client address
@@ -186,14 +187,14 @@ int main(int argc, char **argv){
 
 void receiveDataFromClient(int sock) {
 	
-        sockaddr_in clientAddr{0};
-        socklen_t clientAddrSize = sizeof(clientAddr);
+	sockaddr_in clientAddr{0};
+	socklen_t clientAddrSize = sizeof(clientAddr);
 	auto clientFdMsg = accept(servFdMsg, (sockaddr*) &clientAddr, &clientAddrSize);
 	if (clientFdMsg == -1) error(1, errno, "accept failed");
 	clientFdsMsg.push_back(clientFdMsg);
 	printf("! New messaging chanell from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFdMsg);
-        std::thread tt(messagesChannel, clientFdMsg, sock);	
-        tt.detach();
+	std::thread tt(messagesChannel, clientFdMsg, sock);	
+	tt.detach();
         
         
 	int fileFd = -1;
@@ -387,14 +388,14 @@ void messagesChannel(int messageSock, int sock) {
     
     
 void playlistStartNotify() {
-	for (unsigned int i = 0; i < fileNames.size(); i++) {
+	for (unsigned int i = 0; i < clientFdsMsg.size(); i++) {
 		write(clientFdsMsg[i], playlistFire, sizeof(playlistFire));
 	}
 	printf("Start playlist -> all clients notified.\n");
 }
 
 void playlistStopNotify() {
-	for (unsigned int i = 0; i < fileNames.size(); i++) {
+	for (unsigned int i = 0; i < clientFdsMsg.size(); i++) {
 		write(clientFdsMsg[i], playlistStop, sizeof(playlistStop));
 	}
 	printf("Stop playlist -> all clients notified.\n");
@@ -494,27 +495,31 @@ char* getFileData(std::ifstream &file) {
 }
 
 void sendSongToClient() {
+	
     printf("Hello, I'll be the broadcasting thread.\n");
+    
     unsigned int clientsCount = 0;
     int chunkSize = 32;
-    int headerSize = 44; // tak naprawdę to 44
+    int headerSize = 44; 
     int i, chunksCount;
+    
     char *buffer = NULL;
     char header[headerSize];
     char dataChunk[chunkSize];
-    while(1) {
-        while(playlistOn) {
-            if(currentPlaying == 0) {
+    
+    while (1) {
+        while (playlistOn) {
+            if (currentPlaying == 0) {
+				
                 std::ifstream myFile (currFilename, std::ios::in | std::ios::binary);
                 int fileSize = getFileSize(myFile);
                 buffer = getFileData(myFile);	
                 printf("Broadcasting song %s!\n", currFilename.c_str());
 
-                chunksCount = fileSize / chunkSize;
+                chunksCount = (fileSize-headerSize) / chunkSize + 1;
                 i = 0;
-                
-                
-            //songsize/(44100.0 * 2.0 * (16.0/8.0));
+   
+				//songsize/(44100.0 * 2.0 * (16.0/8.0));
                 memcpy(header, buffer, headerSize);
                 buffer += headerSize;
 
@@ -527,6 +532,7 @@ void sendSongToClient() {
                 unsigned int clientsCount = clientFds.size();
                 currentPlaying = 1;
                 printf("song set\n");
+                
             }
             else if (currentPlaying == 1) {
                 
@@ -537,8 +543,8 @@ void sendSongToClient() {
                     clientsCount = clientFds.size();
                 }
                 
-                 memcpy(dataChunk, buffer, chunkSize);
-                 buffer += chunkSize;
+                memcpy(dataChunk, buffer, chunkSize);
+                buffer += chunkSize;
             
                 for (unsigned int i = 0; i < clientFds.size(); i++) {
                     write(clientFds[i], dataChunk, chunkSize);
