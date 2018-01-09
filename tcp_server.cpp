@@ -31,7 +31,6 @@
 #include <stddef.h>
 #include <algorithm>
 
-// 10 seconds
 const struct timespec interval = { 0, 18140 };
 
 // prowizoryczne znaczniki start i koniec przesylania
@@ -362,6 +361,10 @@ void messagesChannel(int messageSock, int sock) {
             
             else if(checkFirePlList != nullptr) {
                 if (!playlistOn && fileNames.size() > 0) { // playlista 'nie leci'                   
+                    //docelowo klient musi wysyłać nr z playlisty do serwera, wtedy serwer moze ustawic piosenke
+                    //teraz wybierana jest piosenka pierwsza i gra sie ją w kółko
+                    currFilename = fileNames.at(0);
+                    std::cout << currFilename << " to nazwa";
                     playlistOn = true;
                     playlistStartNotify();  
                 }

@@ -80,9 +80,9 @@ public:
     bool playlistOn = false;
 
     const QByteArray *songStartMsg = new QByteArray("^START_SONG^");
-    const QByteArray *songStopMsg = new QByteArray("^STOP_SONG^");
+    const QByteArray *songStopMsg = new QByteArray("^STOOP_SONG^");
     const QByteArray *playlistStartMsg = new QByteArray("^START_LIST^");
-    const QByteArray *playlistStopMsg = new QByteArray("^STOP_LIST^");
+    const QByteArray *playlistStopMsg = new QByteArray("^STOOP_LIST^");
 
 private:
     Ui::ClientWindow *ui;
