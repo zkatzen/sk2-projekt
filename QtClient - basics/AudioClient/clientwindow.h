@@ -42,6 +42,7 @@ public:
     void selectWavFile();
     void loadWavFile();
     void audioStahp();
+    void audioStart();
     void playFromServer();
 
     void createAudioOutput();
@@ -51,6 +52,7 @@ public:
     void pushMeButtonClicked();
     void startPlaylistRequest();
     void stopPlaylistRequest();
+    void nextSongRequest();
 
     QAudioFormat getStdAudioFormat();
 
@@ -62,8 +64,7 @@ public:
     QTcpSocket *socketForMsg = nullptr;
 
     QAudioOutput *audioOut = nullptr;
-
-    QMediaPlayer *qmp = nullptr;
+    QBuffer *audioBuffer = nullptr;
 
     QFile sourceFile;
     QString loadedFileName;
@@ -84,7 +85,7 @@ public:
     const QByteArray *nextSongReq = new QByteArray("^NEXT_SOONG^\n");
 
     const QByteArray *plPos = new QByteArray("POS");
-    const int minSongBytes = 4444;
+    const int minSongBytes = 44000;
 
 
 private:

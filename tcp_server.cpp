@@ -31,7 +31,7 @@
 #include <stddef.h>
 #include <algorithm>
 
-const struct timespec interval = { 0, 18140 };
+const struct timespec interval = { 0, 100 };
 
 // prowizoryczne znaczniki start i koniec przesylania
 char start_msg[] = "^START_SONG^\n";
@@ -332,9 +332,11 @@ void receiveDataFromClient(int sock) {
 }
 
 void messagesChannel(int messageSock, int sock) {
+	
     char message[13];
     int bytesRead;
     sendNewDataToClient(messageSock);
+    
     int run = 1;
     while (run == 1) {
         bytesRead = read(messageSock, message, sizeof(message));
@@ -343,7 +345,7 @@ void messagesChannel(int messageSock, int sock) {
             printf("! Troubles with reading from %d :C\n", messageSock);
             return;
         }
-        else {
+        else if (bytesRead > 0) {
 			
             printf("Got message: %s :), it was %d bytes. \n ", message, bytesRead);
             
@@ -367,8 +369,6 @@ void messagesChannel(int messageSock, int sock) {
             
             else if(checkFirePlList != nullptr) {
                 if (!playlistOn && fileNames.size() > 0) { // playlista 'nie leci'                   
-                    //docelowo klient musi wysyłać nr z playlisty do serwera, wtedy serwer moze ustawic piosenke
-                    //teraz wybierana jest piosenka pierwsza i gra sie ją w kółko
                     playlistOn = true;
                     playlistStartNotify();  
                 }
@@ -506,7 +506,7 @@ void sendSongToClient() {
     printf("Hello, I'll be the broadcasting thread.\n");
     
     unsigned int clientsCount = 0;
-    int chunkSize = 32;
+    int chunkSize = 16;
     int headerSize = 44; 
     int i, chunksCount;
     
@@ -527,6 +527,7 @@ void sendSongToClient() {
 			
 			if (currentFile == -1) {
 				if (fileNames.size() > 0) {
+					nextSongRequest = true;
 					currentFile = 0;
 				}
 				else {
@@ -560,13 +561,13 @@ void sendSongToClient() {
                     write(clientFdsMsg[i], start_msg, sizeof(start_msg));
 
                     write(clientFds[i], header, headerSize);
-                }
-                nanosleep(&interval, NULL);
-                
+                }                
                 songSet = true;
                 nextSongRequest = false;
                 
                 printf("Song set\n");
+                
+                nanosleep(&interval, NULL);
                 
             }
             
@@ -588,6 +589,7 @@ void sendSongToClient() {
                 for (unsigned int i = 0; i < clientFds.size(); i++) {	
                     write(clientFdsMsg[i], stop_msg, sizeof(stop_msg));
                 }
+                printf("Sent stop...\n");
                 bytesSent = 0;
                 
                 currentFile++;
