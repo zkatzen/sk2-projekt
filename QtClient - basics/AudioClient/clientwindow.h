@@ -77,10 +77,15 @@ public:
 
     bool playlistOn = false;
 
-    const QByteArray *songStartMsg = new QByteArray("^START_SONG^");
-    const QByteArray *songStopMsg = new QByteArray("^STOOP_SONG^");
-    const QByteArray *playlistStartMsg = new QByteArray("^START_LIST^");
-    const QByteArray *playlistStopMsg = new QByteArray("^STOOP_LIST^");
+    const QByteArray *songStartMsg = new QByteArray("^START_SONG^\n");
+    const QByteArray *songStopMsg = new QByteArray("^STOOP_SONG^\n");
+    const QByteArray *playlistStartMsg = new QByteArray("^START_LIST^\n");
+    const QByteArray *playlistStopMsg = new QByteArray("^STOOP_LIST^\n");
+    const QByteArray *nextSongReq = new QByteArray("^NEXT_SOONG^\n");
+
+    const QByteArray *plPos = new QByteArray("POS");
+    const int minSongBytes = 4444;
+
 
 private:
     Ui::ClientWindow *ui;
