@@ -539,7 +539,7 @@ void sendSongToClient() {
 			}
 					
 			
-            if (!songSet && nextSongRequest) {
+            if (nextSongRequest) {
 				
                 std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
                 fileSize = getFileSize(myFile);

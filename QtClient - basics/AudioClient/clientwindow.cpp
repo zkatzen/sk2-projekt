@@ -21,7 +21,7 @@ ClientWindow::ClientWindow(QWidget *parent) :
     connect(ui->pushMeButton, &QPushButton::clicked, this, &ClientWindow::pushMeButtonClicked);
     connect(ui->firePlaylistButton, &QPushButton::clicked, this, &ClientWindow::startPlaylistRequest);
     connect(ui->stopPlaylistButton, &QPushButton::clicked, this, &ClientWindow::stopPlaylistRequest);
-
+    connect(ui->nextSongButton, &QPushButton::clicked, this, &ClientWindow::nextSongPlease);
     socket = new QTcpSocket(this);
     songData = new QByteArray();
 
@@ -47,6 +47,13 @@ void ClientWindow::nextSongRequest() {
     if (item && !item->text().isEmpty()) {
         ui->messageBox->append("Requesting NEXT SONG");
         socketForMsg->write(*nextSongReq);
+    }
+}
+
+void ClientWindow::nextSongPlease() {
+    QTableWidgetItem* item = ui->playlistWidget->item(0,0);
+    if (item && !item->text().isEmpty()) {
+        //TODO;
     }
 }
 

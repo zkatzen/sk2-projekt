@@ -53,6 +53,7 @@ public:
     void startPlaylistRequest();
     void stopPlaylistRequest();
     void nextSongRequest();
+    void nextSongPlease();
 
     QAudioFormat getStdAudioFormat();
 
