@@ -275,8 +275,10 @@ void receiveDataFromClient(int sock) {
 			if (snEnd != nullptr && sdStart != nullptr) {
 				
 				bytesSong = 0;
-				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (int)((sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1))); // jaaa...
+				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1)); // jaaa...
+				songS[(sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1)] = '\0';
 				songSize = atoi(songS);
+				printf("SongSize = %d\n", songSize);
 								
 				char fN[] = "songXXXXXX.wav";
 				fileFd = mkostemps(fN,4, O_APPEND);
