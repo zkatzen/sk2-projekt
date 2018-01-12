@@ -22,6 +22,10 @@ ClientWindow::ClientWindow(QWidget *parent) :
     connect(ui->firePlaylistButton, &QPushButton::clicked, this, &ClientWindow::startPlaylistRequest);
     connect(ui->stopPlaylistButton, &QPushButton::clicked, this, &ClientWindow::stopPlaylistRequest);
     connect(ui->nextSongButton, &QPushButton::clicked, this, &ClientWindow::nextSongPlease);
+
+    connect(ui->upButton, &QPushButton::clicked, this, &ClientWindow::upButtonClicked);
+    connect(ui->downButton, &QPushButton::clicked, this, &ClientWindow::downButtonClicked);
+
     socket = new QTcpSocket(this);
     songData = new QByteArray();
 
@@ -31,6 +35,17 @@ ClientWindow::ClientWindow(QWidget *parent) :
     audioBuffer = new QBuffer();
     audioBuffer->setBuffer(songData);
     audioBuffer->open(QIODevice::ReadWrite);
+
+    songDataSize = 0;
+    currPlPosition = 0;
+
+}
+
+void ClientWindow::upButtonClicked() {
+
+}
+
+void ClientWindow::downButtonClicked() {
 
 }
 
@@ -44,17 +59,16 @@ void ClientWindow::startPlaylistRequest() {
 
 void ClientWindow::nextSongRequest() {
     QTableWidgetItem* item = ui->playlistWidget->item(0,0);
-    if (item && !item->text().isEmpty()) {
+    if (item && !item->text().isEmpty() && playlistOn) {
         ui->messageBox->append("Requesting NEXT SONG");
         socketForMsg->write(*nextSongReq);
     }
 }
 
 void ClientWindow::nextSongPlease() {
-    QTableWidgetItem* item = ui->playlistWidget->item(0,0);
-    if (item && !item->text().isEmpty()) {
-        //TODO;
-    }
+    if (audioOut->state() == QAudio::ActiveState || audioOut->state() == QAudio::SuspendedState
+            || audioOut->state() == QAudio::StoppedState) //?
+        this->nextSongRequest();
 }
 
 void ClientWindow::stopPlaylistRequest() {
@@ -130,34 +144,33 @@ void ClientWindow::positionChanged(qint64 progress) {
 void ClientWindow::playFromServer() {
 
     if (playlistOn) {
-        /*ui->messageBox->append("Waitin...");
-        while (songData->size() < minSongBytes) {
-            ;
-        }
-        ui->messageBox->append("Done with waiting.");*/
-        if (songData->size() > minSongBytes)
-            this->audioStart();
 
+        //if (audioOut->state() != QAudio::ActiveState && audioOut->state() != QAudio::IdleState) {
+            //if (songDataSize > minSongBytes)
+                this->audioStart();
+        //}
     }
+
 }
 
 
 void ClientWindow::audioStart() {
-    if (audioOut) {
+
+    if (audioOut && songDataSize > minSongBytes) {
 
         if (audioOut->state() == QAudio::StoppedState) {
-            if (audioBuffer->size() > 44) {
-                ui->messageBox->append("I've got " + QString::number(audioBuffer->size()) + " bytes in a buffer to play :)");
+            // if (songDataSize > minSongBytes) {
+                ui->messageBox->append("I've got " + QString::number(songDataSize) + " bytes in a buffer to play :)");
 
                 audioBuffer->close();
-                songData->clear();
+                //songData->clear();
                 audioBuffer->setBuffer(songData);
 
                 if (!audioBuffer->isOpen())
                     audioBuffer->open(QIODevice::ReadWrite);
 
                 audioOut->start(audioBuffer);
-            }
+            //}
         }
 
         else if (audioOut->state() == QAudio::SuspendedState)
@@ -228,8 +241,9 @@ void ClientWindow::dataAvailable() {
     // PLAYLIST
     if (songLoading) {
         songData->append(dataRec);
+        songDataSize += dataRec.size();
         // if (songData->size() > minSongBytes)
-        this->playFromServer();
+        // this->playFromServer();
     }
 
 
@@ -254,14 +268,29 @@ void ClientWindow::msgAvailable() {
         //return; // ?
     }
     if (msgRec.contains(*plPos)) {
+
+        /*int currR = ui->playlistWidget->currentRow();
+        if (currR > 0)*/
+
         int posIdx = msgRec.indexOf("POS");
         QByteArray posData = msgRec.mid(posIdx + 3);
         posData.truncate(posData.indexOf("\n"));
         int plPosition = posData.toInt();
         ui->playlistWidget->selectRow(plPosition - 1);
+
+        // clear previous
+        for (int i = 0; i < 2; i ++)
+            ui->playlistWidget->item(currPlPosition, i)->setBackgroundColor(Qt::white);
+        // set new
+        currPlPosition = plPosition-1;
+        // paint pink <3
+        for (int i = 0; i < 2; i ++)
+            ui->playlistWidget->item(plPosition-1, i)->setBackgroundColor(Qt::magenta);
+
     }
     if (msgRec.contains(*songStartMsg)) {
-        // songData->clear();
+        songData->clear();
+        songDataSize = 0;
         songLoading = true;
         ui->messageBox->append("Song -> there was 'Song Start'' in the packet!");
     }
@@ -270,16 +299,19 @@ void ClientWindow::msgAvailable() {
         songLoaded = true;
         songLoading = false;
 
-        ui->messageBox->append("Server song size is : ");// + QString::number(songData->size()));
+        ui->messageBox->append("Server song size is : " + QString::number(songDataSize));
         //songData->append("\0");
-        // this->playFromServer();
+        this->playFromServer();
 
     }
 
 }
 
 void ClientWindow::updatePlaylist(QByteArray playlistData) {
+
     if (playlistData.contains("<playlist>") && playlistData.contains("<end_playlist>")) {
+
+        int currR = ui->playlistWidget->currentRow();
 
         int plLen = playlistData.indexOf("<end_playlist>") - playlistData.indexOf("<playlist>") - sizeof("<playlist>");
         auto playlist = playlistData.mid(playlistData.indexOf("<playlist>") + sizeof("<playlist>") - 1, plLen);
@@ -293,6 +325,8 @@ void ClientWindow::updatePlaylist(QByteArray playlistData) {
             rowCounter++;
         }
 
+        if (currR >= 0)
+            ui->playlistWidget->selectRow(currR);
     }
     else {
         QMessageBox::information(this, "Error", "I got incomplete playlist data packet :|");
@@ -307,14 +341,15 @@ void ClientWindow::handleStateAudioOutChanged(QAudio::State newState) {
 
     switch (newState) {
         case QAudio::IdleState:
-            audioOut->stop();
+            //audioOut->stop();
             //if (err == QAudio::NoError) {
                 this->nextSongRequest();
+                audioOut->stop();
             //}
             break;
 
         case QAudio::StoppedState:
-            audioOut->stop();
+            //audioOut->stop();
             // Stopped for other reasons
             break;
 
