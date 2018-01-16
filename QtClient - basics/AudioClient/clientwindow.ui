@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>601</width>
+    <width>639</width>
     <height>463</height>
    </rect>
   </property>
@@ -261,7 +261,7 @@
      <rect>
       <x>550</x>
       <y>120</y>
-      <width>41</width>
+      <width>71</width>
       <height>51</height>
      </rect>
     </property>
@@ -270,7 +270,7 @@
     </property>
     <property name="icon">
      <iconset>
-      <normaloff>../up.png</normaloff>../up.png</iconset>
+      <normaloff>up.png</normaloff>up.png</iconset>
     </property>
    </widget>
    <widget class="QPushButton" name="downButton">
@@ -278,7 +278,7 @@
      <rect>
       <x>550</x>
       <y>180</y>
-      <width>41</width>
+      <width>71</width>
       <height>51</height>
      </rect>
     </property>
@@ -287,7 +287,7 @@
     </property>
     <property name="icon">
      <iconset>
-      <normaloff>../down.png</normaloff>../down.png</iconset>
+      <normaloff>down.png</normaloff>down.png</iconset>
     </property>
    </widget>
   </widget>
@@ -296,8 +296,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>601</width>
-     <height>25</height>
+     <width>639</width>
+     <height>19</height>
     </rect>
    </property>
   </widget>
