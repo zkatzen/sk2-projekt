@@ -103,7 +103,6 @@ private:
 
 private slots:
     void handleStateAudioOutChanged(QAudio::State newState);
-    void positionChanged(qint64 progress);
 
 };
 

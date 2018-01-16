@@ -48,6 +48,8 @@ char playlistFire[] = "^START_LIST^\n";
 char playlistStop[] = "^STOOP_LIST^\n";
 char nextSong[] = "^NEXT_SOONG^";
 
+char songUp[] = "SONG_UP_";
+char songDown[] = "SONG_DO_";
 char playlistPos[] = "POS%d\n";
 
 // zmienna 'czy nadajemy z playlisty, czy nie?'
@@ -354,8 +356,7 @@ void messagesChannel(int messageSock, int sock) {
 				// strcpy(tempBuffer, message);
 			}
             else {
-				while (checkNewLine != nullptr) { // following \n's are found
-
+                        while (checkNewLine != nullptr) { // following \n's are found
 					// check what's that!
 					if (strstr(message, byeMsg) != nullptr) {
 						goodbyeSocket(sock, messageSock);
@@ -377,6 +378,37 @@ void messagesChannel(int messageSock, int sock) {
 					else if (strstr(message, nextSong) != nullptr) {
 						nextSongRequest = true;
 					}
+					
+					else if( strstr(message, songUp) != nullptr) {
+                                            char* up = strstr(message, songUp);
+                                            char songPos[4];
+                                            memcpy(songPos, up + sizeof(songUp)-1, (checkNewLine-message)-(up-message+sizeof(songUp)-1));
+                                            songPos[(checkNewLine-message)-(up-message+sizeof(songUp)-1)] = '\0';
+                                            int posUp = atoi(songPos);
+                                            //TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
+                                            //if (posUp == currentPlaying) {currentPlaying--;}
+                                            //else if(posUp == (currentPlaying-1)) {currentPlaying++;}
+                                            auto temp = fileNames[posUp-1];
+                                            fileNames[posUp-1] = fileNames[posUp];
+                                            fileNames[posUp] = temp;
+                                            updatePlaylistInfo();
+                                           
+                                        }
+                                        else if( strstr(message, songDown) != nullptr) {
+                                            char* down = strstr(message, songDown);
+                                            char songPos[4];
+                                            memcpy(songPos, down + sizeof(songDown)-1, (checkNewLine-message)-(down-message+sizeof(songDown)-1));
+                                            songPos[(checkNewLine-message)-(down-message+sizeof(songDown)-1)] = '\0';
+                                            int posDown = atoi(songPos);
+                                            //TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
+                                            //if (posUp == currentPlaying) {currentPlaying--;}
+                                            //else if(posUp == (currentPlaying-1)) {currentPlaying++;}
+                                            auto temp = fileNames[posDown+1];
+                                            fileNames[posDown+1] = fileNames[posDown];
+                                            fileNames[posDown] = temp;
+                                            updatePlaylistInfo();
+                                           
+                                        }
 					else {
 						printf("Warning, couldn't recognise message!\n");
 					}

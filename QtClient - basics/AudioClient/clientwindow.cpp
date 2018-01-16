@@ -42,11 +42,26 @@ ClientWindow::ClientWindow(QWidget *parent) :
 }
 
 void ClientWindow::upButtonClicked() {
-
+    int itemRow = ui->playlistWidget->currentRow();
+    if(itemRow > 0) {
+        QByteArray *upSong = new QByteArray("SONG_UP_");
+        upSong->append(QString::number(itemRow));
+        upSong->append("\n");
+        socketForMsg->write(upSong->data());
+        ui->playlistWidget->selectRow(itemRow-1);
+    }
 }
 
 void ClientWindow::downButtonClicked() {
-
+    int itemRow = ui->playlistWidget->currentRow();
+    QTableWidgetItem *nextItem = ui->playlistWidget->item(itemRow+1, 0);
+    if(nextItem && !nextItem->text().isEmpty()) {
+        QByteArray *downSong = new QByteArray("SONG_DO_");
+        downSong->append(QString::number(itemRow));
+        downSong->append("\n");
+        socketForMsg->write(downSong->data());
+        ui->playlistWidget->selectRow(itemRow+1);
+    }
 }
 
 void ClientWindow::startPlaylistRequest() {
@@ -135,10 +150,6 @@ void ClientWindow::startLoadedAudio() {
     else {
         ui->messageBox->append("No data found to be played. :c");
     }
-}
-
-void ClientWindow::positionChanged(qint64 progress) {
-    ;
 }
 
 void ClientWindow::playFromServer() {
