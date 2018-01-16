@@ -50,6 +50,7 @@ char nextSong[] = "^NEXT_SOONG^";
 
 char songUp[] = "SONG_UP_";
 char songDown[] = "SONG_DO_";
+char songDelete[] = "SONG_DEL_";
 char playlistPos[] = "POS%d\n";
 
 // zmienna 'czy nadajemy z playlisty, czy nie?'
@@ -172,7 +173,6 @@ int main(int argc, char **argv){
 		// accept new connection
 		auto clientFd = accept(servFd, (sockaddr*) &clientAddr, &clientAddrSize);
 		if (clientFd == -1) error(1, errno, "accept failed");
-		
 		// add client to all clients set
 		clientFds.push_back(clientFd);
 		
@@ -216,7 +216,7 @@ void receiveDataFromClient(int sock) {
 	
 	int bytesTotal = 0, bytesRead, bytesSong = 0;
 	char *snStart, *snEnd, *sdStart;
-	double songDuration = 0.0;
+	//double songDuration = 0.0;
 
 	
 	while (1) {
@@ -354,59 +354,74 @@ void messagesChannel(int messageSock, int sock) {
 			}
 
             else { // there are some \n's
-				while (checkNewLine != nullptr) { // following \n's are found
-					// check what's that!
-					if (strstr(msgPtr, byeMsg) != nullptr) {
-						goodbyeSocket(sock, messageSock);
-						//free(message);
-						return;
-					}
-					else if (strstr(msgPtr, playlistFire) != nullptr) {
-						if (!playlistOn && fileNames.size() > 0) {                 
-							playlistOn = true;
-							playlistStartNotify();  
-						}
-					}
-					else if (strstr(msgPtr, playlistStop) != nullptr) {
-						if (playlistOn) { 
-							playlistStopNotify();
-							playlistOn = false;
-						}
-					}
-					else if (strstr(msgPtr, nextSong) != nullptr) {
-						nextSongRequest = true;
-					}
-					
-					else if( strstr(message, songUp) != nullptr) {
-                                            char* up = strstr(message, songUp);
-                                            char songPos[4];
-                                            memcpy(songPos, up + sizeof(songUp)-1, (checkNewLine-message)-(up-message+sizeof(songUp)-1));
-                                            songPos[(checkNewLine-message)-(up-message+sizeof(songUp)-1)] = '\0';
-                                            int posUp = atoi(songPos);
-                                            //TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
-                                            //if (posUp == currentPlaying) {currentPlaying--;}
-                                            //else if(posUp == (currentPlaying-1)) {currentPlaying++;}
-                                            auto temp = fileNames[posUp-1];
-                                            fileNames[posUp-1] = fileNames[posUp];
-                                            fileNames[posUp] = temp;
-                                            updatePlaylistInfo();
-                                           
-                                        }
-                                        else if( strstr(message, songDown) != nullptr) {
-                                            char* down = strstr(message, songDown);
-                                            char songPos[4];
-                                            memcpy(songPos, down + sizeof(songDown)-1, (checkNewLine-message)-(down-message+sizeof(songDown)-1));
-                                            songPos[(checkNewLine-message)-(down-message+sizeof(songDown)-1)] = '\0';
-                                            int posDown = atoi(songPos);
-                                            //TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
-                                            //if (posUp == currentPlaying) {currentPlaying--;}
-                                            //else if(posUp == (currentPlaying-1)) {currentPlaying++;}
-                                            auto temp = fileNames[posDown+1];
-                                            fileNames[posDown+1] = fileNames[posDown];
-                                            fileNames[posDown] = temp;
-                                            updatePlaylistInfo();
-                                           
-                                        }
+                while (checkNewLine != nullptr) { // following \n's are found
+                // check what's that!
+                    if (strstr(msgPtr, byeMsg) != nullptr) {
+                            goodbyeSocket(sock, messageSock);
+                            //free(message);
+                            return;
+                    }
+                    else if (strstr(msgPtr, playlistFire) != nullptr) {
+                        if (!playlistOn && fileNames.size() > 0) {                 
+                            playlistOn = true;
+                            playlistStartNotify();  
+                        }
+                    }
+                    else if (strstr(msgPtr, playlistStop) != nullptr) {
+                        if (playlistOn) { 
+                            playlistStopNotify();
+                            playlistOn = false;
+                        }
+                    }
+                    else if (strstr(msgPtr, nextSong) != nullptr) {
+                        nextSongRequest = true;
+                    }					
+                    else if (strstr(message, songUp) != nullptr) {
+                       char* up = strstr(message, songUp);
+                       char songPos[4];
+                       memcpy(songPos, up + sizeof(songUp)-1, (checkNewLine-message)-(up-message+sizeof(songUp)-1));
+                       songPos[(checkNewLine-message)-(up-message+sizeof(songUp)-1)] = '\0';
+                       int posUp = atoi(songPos);
+                       //if (posUp == currentPlaying) {--currentFile;}
+                       //else if(posUp == (currentPlaying-1)) {++currentFile;}
+                       auto temp = fileNames[posUp-1];
+                       fileNames[posUp-1] = fileNames[posUp];
+                       fileNames[posUp] = temp;
+                       updatePlaylistInfo();
+                	}
+                    else if (strstr(message, songDown) != nullptr) {
+                    	char* down = strstr(message, songDown);
+                        char songPos[4];
+                        memcpy(songPos, down + sizeof(songDown)-1, (checkNewLine-message)-(down-message+sizeof(songDown)-1));
+                        songPos[(checkNewLine-message)-(down-message+sizeof(songDown)-1)] = '\0';
+                        int posDown = atoi(songPos);
+                        //if (posDown == currentPlaying) {++currentFile;}
+                        //else if(posDown == (currentPlaying-1)) {--currentFile;}
+                        auto temp = fileNames[posDown+1];
+                        fileNames[posDown+1] = fileNames[posDown];
+                        fileNames[posDown] = temp;
+                        updatePlaylistInfo();      
+                   	}
+                    else if (strstr(message, songDelete) != nullptr) {
+                        char* del = strstr(message, songDelete);
+                        char songPos[4];
+                        memcpy(songPos, del + sizeof(songDelete)-1, (checkNewLine-message)-(del-message+sizeof(songDelete)-1));
+                        songPos[(checkNewLine-message)-(del-message+sizeof(songDelete)-1)] = '\0';
+                        int posDel = atoi(songPos);
+                        if(posDel < currentFile) {--currentFile;}
+                        auto fileN = fileNames[posDel];
+                        
+                        fileNames.erase(fileNames.begin()+posDel);
+                        
+                        if (remove(fileN.c_str()) != 0) {
+                            printf("troubles with removing %s\n", fileN.c_str());
+                        }
+                        else {
+                            printf("removing file %s\n", fileN.c_str());
+                        }
+                        
+                        updatePlaylistInfo();
+                    }
 					else {
 						printf("Warning, couldn't recognise message!\n");
 					}
@@ -557,7 +572,6 @@ void sendSongToClient() {
 	
     printf("Hello, I'll be the broadcasting thread.\n");
     
-    unsigned int clientsCount = 0;
     int chunkSize = 17640;
     int headerSize = 44; 
     int i, chunksCount;

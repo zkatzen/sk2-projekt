@@ -12,19 +12,17 @@ ClientWindow::ClientWindow(QWidget *parent) :
 
     connect(ui->fileSelect, &QPushButton::clicked, this, &ClientWindow::selectWavFile);
     connect(ui->fileSend, &QPushButton::clicked, this, &ClientWindow::loadWavFile);
-    connect(ui->startButton, &QPushButton::clicked, this, &ClientWindow::startLoadedAudio);
-    connect(ui->stopButton, &QPushButton::clicked, this, &ClientWindow::audioStahp);
 
     connect(ui->serverPlayButton, &QPushButton::clicked, this, &ClientWindow::playFromServer);
     connect(ui->sendButton, &QPushButton::clicked, this, &ClientWindow::sendSongToServer);
 
-    connect(ui->pushMeButton, &QPushButton::clicked, this, &ClientWindow::pushMeButtonClicked);
     connect(ui->firePlaylistButton, &QPushButton::clicked, this, &ClientWindow::startPlaylistRequest);
     connect(ui->stopPlaylistButton, &QPushButton::clicked, this, &ClientWindow::stopPlaylistRequest);
     connect(ui->nextSongButton, &QPushButton::clicked, this, &ClientWindow::nextSongPlease);
 
     connect(ui->upButton, &QPushButton::clicked, this, &ClientWindow::upButtonClicked);
     connect(ui->downButton, &QPushButton::clicked, this, &ClientWindow::downButtonClicked);
+    connect(ui->deleteButton,&QPushButton::clicked, this, &ClientWindow::deleteButtonClicked);
 
     socket = new QTcpSocket(this);
     songData = new QByteArray();
@@ -43,7 +41,7 @@ ClientWindow::ClientWindow(QWidget *parent) :
 
 void ClientWindow::upButtonClicked() {
     int itemRow = ui->playlistWidget->currentRow();
-    if(itemRow > 0) {
+    if(itemRow > 0 && itemRow != currPlPosition && (itemRow-1) != currPlPosition) {
         QByteArray *upSong = new QByteArray("SONG_UP_");
         upSong->append(QString::number(itemRow));
         upSong->append("\n");
@@ -55,13 +53,26 @@ void ClientWindow::upButtonClicked() {
 void ClientWindow::downButtonClicked() {
     int itemRow = ui->playlistWidget->currentRow();
     QTableWidgetItem *nextItem = ui->playlistWidget->item(itemRow+1, 0);
-    if(nextItem && !nextItem->text().isEmpty()) {
+    if(nextItem && !nextItem->text().isEmpty() && itemRow != currPlPosition && (itemRow+1) != currPlPosition) {
         QByteArray *downSong = new QByteArray("SONG_DO_");
         downSong->append(QString::number(itemRow));
         downSong->append("\n");
         socketForMsg->write(downSong->data());
         ui->playlistWidget->selectRow(itemRow+1);
     }
+}
+
+void ClientWindow::deleteButtonClicked() {
+    int itemRow = ui->playlistWidget->currentRow();
+    if(itemRow != currPlPosition) {
+        QByteArray *downSong = new QByteArray("SONG_DEL_");
+        downSong->append(QString::number(itemRow));
+        downSong->append("\n");
+        socketForMsg->write(downSong->data());
+        if(itemRow <= currPlPosition)
+            ui->playlistWidget->selectRow(--currPlPosition);
+    }
+
 }
 
 void ClientWindow::startPlaylistRequest() {
@@ -87,7 +98,6 @@ void ClientWindow::nextSongPlease() {
 }
 
 void ClientWindow::stopPlaylistRequest() {
-    QAudio::State s = audioOut->state();
     if (playlistOn) {
         socketForMsg->write(*playlistStopMsg);
     }
