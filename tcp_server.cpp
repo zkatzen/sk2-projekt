@@ -308,9 +308,7 @@ void messagesChannel(int messageSock, int sock) {
     int msgBufSize = 32; 
     char message[msgBufSize];
     char *msgPtr;
-    // char *message = (char *) malloc(sizeof(char) * msgBufSize);
-    
-    // char tempBuffer[msgBufSize];
+
     bool tempBuffering = false;
     char *previous;
     char *checkNewLine;
@@ -565,6 +563,8 @@ void sendSongToClient() {
     int i, chunksCount;
     
     char *buffer = NULL;
+    char *fileDataStart = NULL;
+    
     char header[headerSize];
     char dataChunk[chunkSize];
     
@@ -598,7 +598,11 @@ void sendSongToClient() {
 				
                 std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
                 fileSize = getFileSize(myFile);
-                buffer = getFileData(myFile);	
+                
+                delete[] fileDataStart;
+                fileDataStart = getFileData(myFile);	
+                buffer = fileDataStart;
+                
                 printf("Broadcasting song %s!\n", fileNames[currentFile].c_str());
 
                 chunksCount = (fileSize-headerSize) / chunkSize + 1;
