@@ -88,7 +88,7 @@ void ClientWindow::nextSongPlease() {
 
 void ClientWindow::stopPlaylistRequest() {
     QAudio::State s = audioOut->state();
-    if (s != QAudio::StoppedState) {
+    if (playlistOn) {
         socketForMsg->write(*playlistStopMsg);
     }
 }
