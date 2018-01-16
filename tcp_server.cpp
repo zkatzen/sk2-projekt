@@ -31,7 +31,7 @@
 #include <stddef.h>
 #include <algorithm>
 
-const struct timespec interval = { 0, 100 };
+const struct timespec interval = { 0, 100000000 };
 const struct timespec interval_longer = { 0, 500 };
 
 
@@ -303,24 +303,25 @@ void receiveDataFromClient(int sock) {
 
 void messagesChannel(int messageSock, int sock) {
 	
-    //char message[13];
-    
-    int msgBufSize = 32; // taki rozmiar, że każda wiadomość od klienta się zmieści
+    int msgBufSize = 32; 
     char message[msgBufSize];
+    char *msgPtr;
+    // char *message = (char *) malloc(sizeof(char) * msgBufSize);
     
-    char tempBuffer[msgBufSize];
+    // char tempBuffer[msgBufSize];
     bool tempBuffering = false;
     char *previous;
+    char *checkNewLine;
     
-    std::string temp;
+    std::string temp = std::string("");
     
     int bytesRead;
     sendNewDataToClient(messageSock);
     
-    int run = 1;
-    while (run == 1) {
+    while (1) {
 		
         bytesRead = read(messageSock, message, msgBufSize);
+        msgPtr = message;
 
         if (bytesRead < 0) {
             // cant read from sock = disconnection?
@@ -333,48 +334,45 @@ void messagesChannel(int messageSock, int sock) {
 			// clear rest of the buffer
 			for (int i = bytesRead; i < msgBufSize; i++)
 				message[i] = '\0';
-			
-            printf("Got message: %s :), it was %d bytes.\n ", message, bytesRead);
+            //printf("Got message: %.8s :), it was %d bytes.\n ", message, bytesRead);
             
             if (tempBuffering) {
-				printf("Got message '%s' while '%s' is in temp buffer.\n", message, temp.c_str());
-				temp += std::string(message); //za mały bufor teraz...
-				// strcat(tempBuffer, message);
-				// strcpy(message, temp.c_str());
-				printf("After concat: %s\n", temp.c_str());
+				temp += std::string(message);
+				msgPtr = (char *) temp.c_str();
+				// printf("After concat: %s\n", msgPtr);
 
 			}
             
-            char *checkNewLine = strstr(message, "\n");
-            
+            checkNewLine = strstr(msgPtr, "\n");
+       		// printf("What's going on? : %s, %d, %d, %d \n", checkNewLine, message, checkNewLine, checkNewLine-message);
+
             if (checkNewLine == nullptr) {
-				// got loads of data, but no \n was found! 
+				// no \n found in all bytes read
 				tempBuffering = true;
-				temp = std::string(message, sizeof(message));
-				// strcpy(tempBuffer, message);
+				temp += std::string(message, sizeof(message));
+				msgPtr = (char *) temp.c_str();
 			}
-            else {
+            else { // there are some \n's
 				while (checkNewLine != nullptr) { // following \n's are found
-
 					// check what's that!
-					if (strstr(message, byeMsg) != nullptr) {
+					if (strstr(msgPtr, byeMsg) != nullptr) {
 						goodbyeSocket(sock, messageSock);
-						run = 0;
-						break;
+						//free(message);
+						return;
 					}
-					else if (strstr(message, playlistFire) != nullptr) {
+					else if (strstr(msgPtr, playlistFire) != nullptr) {
 						if (!playlistOn && fileNames.size() > 0) {                 
 							playlistOn = true;
 							playlistStartNotify();  
 						}
 					}
-					else if (strstr(message, playlistStop) != nullptr) {
+					else if (strstr(msgPtr, playlistStop) != nullptr) {
 						if (playlistOn) { 
 							playlistStopNotify();
 							playlistOn = false;
 						}
 					}
-					else if (strstr(message, nextSong) != nullptr) {
+					else if (strstr(msgPtr, nextSong) != nullptr) {
 						nextSongRequest = true;
 					}
 					else {
@@ -386,22 +384,16 @@ void messagesChannel(int messageSock, int sock) {
 						
 				}
 				// nie ma nastepnych \n
-				if (previous+1 < message + bytesRead) {
+				if (previous+1 < msgPtr + bytesRead) {
 					// ale zostaly dane
-					// strcpy(tempBuffer, previous+1);
-					temp = std::string(previous+1, (message+bytesRead - previous+1));
-					
-					int writtenToTemp = message + bytesRead - previous+1;
-					/*for (int i = 0; i < msgBufSize - writtenToTemp; i++ ) {
-						tempBuffer[i + writtenToTemp] = '\0';
-					}*/
-					
+					temp += std::string(previous+1, (msgPtr+bytesRead - previous+1));
 					tempBuffering = true;
-					printf("It really happens sometimes... (%s) -> (%s) \n", message, temp.c_str());
 				}
 				else {
 					// wszystko ok?
+					checkNewLine = nullptr;
 					tempBuffering = false;
+					temp = std::string("");
 				}
 			}
             
@@ -534,7 +526,7 @@ void sendSongToClient() {
     printf("Hello, I'll be the broadcasting thread.\n");
     
     unsigned int clientsCount = 0;
-    int chunkSize = 16;
+    int chunkSize = 17640;
     int headerSize = 44; 
     int i, chunksCount;
     
@@ -569,7 +561,6 @@ void sendSongToClient() {
                 
                 currentFile++;
                 currentFile = currentFile % fileNames.size();
-                
 				
                 std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
                 fileSize = getFileSize(myFile);
@@ -578,8 +569,8 @@ void sendSongToClient() {
 
                 chunksCount = (fileSize-headerSize) / chunkSize + 1;
                 i = 0;
+                bytesSent = 0;
    
-				//songsize/(44100.0 * 2.0 * (16.0/8.0));
                 memcpy(header, buffer, headerSize);
                 buffer += headerSize;
 
@@ -593,7 +584,9 @@ void sendSongToClient() {
                     write(clientFdsMsg[i], start_msg, sizeof(start_msg));
 
                     write(clientFds[i], header, headerSize);
-                }                
+                }       
+                
+                bytesSent += headerSize;         
                 songSet = true;
                 nextSongRequest = false;
                 
@@ -605,20 +598,35 @@ void sendSongToClient() {
             
             if (songSet) {
                 
-                memcpy(dataChunk, buffer, chunkSize);
-                buffer += chunkSize;
-                for (unsigned int i = 0; i < clientFds.size(); i++) {
-                    write(clientFds[i], dataChunk, chunkSize);
-                }
-                bytesSent += chunkSize;
+                if (fileSize - bytesSent >= chunkSize) { // can send one whole chunk of data (or more)
+					memcpy(dataChunk, buffer, chunkSize);
+					buffer += chunkSize;
+					for (unsigned int i = 0; i < clientFds.size(); i++) {
+						write(clientFds[i], dataChunk, chunkSize);
+					}
+					bytesSent += chunkSize;
+					// printf("Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
+				}
+				
+				else { // less than chunkSize of data remains
+					int rem = fileSize - bytesSent;
+					memcpy(dataChunk, buffer, rem);
+					buffer += rem; // (should be) end of file
+					for (unsigned int i = 0; i < clientFds.size(); i++) {
+						write(clientFds[i], dataChunk, rem);
+					}
+					bytesSent += rem;
+					// printf("[REM PART!] Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
+
+				}
+				
                 nanosleep(&interval, NULL);
-                
                 i++;
                 
             }
             
-            if (songSet && bytesSent >= fileSize - headerSize) {
-				nanosleep(&interval_longer, NULL);
+            if (songSet && bytesSent >= fileSize) {
+				// nanosleep(&interval_longer, NULL);
                 for (unsigned int i = 0; i < clientFds.size(); i++) {	
                     write(clientFdsMsg[i], stop_msg, sizeof(stop_msg));
                 }
@@ -649,7 +657,7 @@ void broadcastToAll(std::string filename) {
 	char *buffer = getFileData(myFile);	
 	printf("Broadcasting song %s!\n", filename.c_str());
 
-	int chunkSize = 32;
+	int chunkSize = 2048;
 	int chunksCount = fileSize / chunkSize;
 	int headerSize = 44; // tak naprawdę to 44
 	

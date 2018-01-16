@@ -93,7 +93,7 @@ public:
     const QByteArray *nextSongReq = new QByteArray("^NEXT_SOONG^\n");
 
     const QByteArray *plPos = new QByteArray("POS");
-    const int minSongBytes = 44100 * 4;
+    const int minSongBytes = 44100 * 2;
 
     int currPlPosition;
 
