@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>601</width>
-    <height>518</height>
+    <width>639</width>
+    <height>463</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -92,19 +92,6 @@
      <string>... .wav filename ...</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="stopButton">
-    <property name="geometry">
-     <rect>
-      <x>80</x>
-      <y>310</y>
-      <width>71</width>
-      <height>22</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>stop</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="serverPlayButton">
     <property name="enabled">
      <bool>false</bool>
@@ -119,19 +106,6 @@
     </property>
     <property name="text">
      <string>Is there something to play?</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="startButton">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>310</y>
-      <width>71</width>
-      <height>22</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>start</string>
     </property>
    </widget>
    <widget class="QPushButton" name="sendButton">
@@ -168,7 +142,7 @@
      <rect>
       <x>270</x>
       <y>10</y>
-      <width>241</width>
+      <width>271</width>
       <height>351</height>
      </rect>
     </property>
@@ -179,7 +153,7 @@
      <number>2</number>
     </property>
     <attribute name="horizontalHeaderDefaultSectionSize">
-     <number>98</number>
+     <number>113</number>
     </attribute>
     <row/>
     <row/>
@@ -204,51 +178,38 @@
     <column/>
     <column/>
    </widget>
-   <widget class="QPushButton" name="pushMeButton">
-    <property name="geometry">
-     <rect>
-      <x>70</x>
-      <y>340</y>
-      <width>121</width>
-      <height>27</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Push Me! :)</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="firePlaylistButton">
     <property name="geometry">
      <rect>
       <x>270</x>
       <y>360</y>
-      <width>241</width>
+      <width>91</width>
       <height>31</height>
      </rect>
     </property>
     <property name="text">
-     <string>FIRE! (playlist)</string>
+     <string>FIRE!</string>
     </property>
    </widget>
    <widget class="QPushButton" name="stopPlaylistButton">
     <property name="geometry">
      <rect>
-      <x>270</x>
-      <y>390</y>
-      <width>241</width>
+      <x>360</x>
+      <y>360</y>
+      <width>91</width>
       <height>31</height>
      </rect>
     </property>
     <property name="text">
-     <string>STOP :[</string>
+     <string>STOP</string>
     </property>
    </widget>
    <widget class="QPushButton" name="nextSongButton">
     <property name="geometry">
      <rect>
-      <x>270</x>
-      <y>420</y>
-      <width>241</width>
+      <x>450</x>
+      <y>360</y>
+      <width>91</width>
       <height>31</height>
      </rect>
     </property>
@@ -259,10 +220,10 @@
    <widget class="QPushButton" name="upButton">
     <property name="geometry">
      <rect>
-      <x>520</x>
-      <y>160</y>
-      <width>80</width>
-      <height>22</height>
+      <x>550</x>
+      <y>120</y>
+      <width>71</width>
+      <height>51</height>
      </rect>
     </property>
     <property name="text">
@@ -270,16 +231,16 @@
     </property>
     <property name="icon">
      <iconset>
-      <normaloff>../up.png</normaloff>../up.png</iconset>
+      <normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/up.png</normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/up.png</iconset>
     </property>
    </widget>
    <widget class="QPushButton" name="downButton">
     <property name="geometry">
      <rect>
-      <x>520</x>
-      <y>190</y>
-      <width>80</width>
-      <height>22</height>
+      <x>550</x>
+      <y>180</y>
+      <width>71</width>
+      <height>51</height>
      </rect>
     </property>
     <property name="text">
@@ -287,7 +248,20 @@
     </property>
     <property name="icon">
      <iconset>
-      <normaloff>../down.png</normaloff>../down.png</iconset>
+      <normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/down.png</normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/down.png</iconset>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="deleteButton">
+    <property name="geometry">
+     <rect>
+      <x>550</x>
+      <y>280</y>
+      <width>71</width>
+      <height>61</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>DELETE</string>
     </property>
    </widget>
   </widget>
@@ -296,7 +270,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>601</width>
+     <width>639</width>
      <height>19</height>
     </rect>
    </property>

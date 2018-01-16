@@ -31,7 +31,9 @@
 #include <stddef.h>
 #include <algorithm>
 
-const struct timespec interval = { 0, 100 };
+const struct timespec interval = { 0, 100000000 };
+const struct timespec interval_longer = { 0, 500 };
+
 
 // prowizoryczne znaczniki start i koniec przesylania
 char start_msg[] = "^START_SONG^\n";
@@ -46,6 +48,9 @@ char playlistFire[] = "^START_LIST^\n";
 char playlistStop[] = "^STOOP_LIST^\n";
 char nextSong[] = "^NEXT_SOONG^";
 
+char songUp[] = "SONG_UP_";
+char songDown[] = "SONG_DO_";
+char songDelete[] = "SONG_DEL_";
 char playlistPos[] = "POS%d\n";
 
 // zmienna 'czy nadajemy z playlisty, czy nie?'
@@ -118,6 +123,8 @@ void broadcastToAll(std::string filename);
 void playlistStartNotify();
 void playlistStopNotify();
 
+void goodbyeSocket(int sock, int messageSock);
+
 int main(int argc, char **argv){
 	// get and validate port number
 	if(argc != 4) error(1, 0, "Need 3 args: port + filename + port");
@@ -166,7 +173,6 @@ int main(int argc, char **argv){
 		// accept new connection
 		auto clientFd = accept(servFd, (sockaddr*) &clientAddr, &clientAddrSize);
 		if (clientFd == -1) error(1, errno, "accept failed");
-		
 		// add client to all clients set
 		clientFds.push_back(clientFd);
 		
@@ -210,7 +216,7 @@ void receiveDataFromClient(int sock) {
 	
 	int bytesTotal = 0, bytesRead, bytesSong = 0;
 	char *snStart, *snEnd, *sdStart;
-	double songDuration = 0.0;
+	//double songDuration = 0.0;
 
 	
 	while (1) {
@@ -222,43 +228,7 @@ void receiveDataFromClient(int sock) {
 
 		if (bytesRead > 0) {
 			bytesTotal += bytesRead;
-			// printf("<got %d bytes>", bytesRead);
-			
-			/*char* goodbyeCheck = strstr(buffer, byeMsg);
-			if (goodbyeCheck != nullptr) {
-				// client has disconnected
-				ptrdiff_t pos = std::distance(clientFds.begin(), std::find(clientFds.begin(), clientFds.end(), sock));
-				clientFds.erase(clientFds.begin() + pos);
-				printf("\nSocket %d has sent goodbye...", sock);
-				break;
-			}*/		
-			/*char* plCheck = strstr(buffer, playlistFire);
-			if (plCheck != nullptr) { // otrzymano START PLAYLIST
-				if (!playlistOn) { // playlista 'nie leci'
-					if (fileNames.size() > 0) { // są piosenki
-						
-						std::string firstSong = fileNames.at(0);
-                                                currFilename = fileNames.at(0);
-                                                
-						playlistOn = true;
-						playlistStartNotify();
-						
-						//std::thread tt(broadcastToAll, firstSong);	
-						//tt.detach();
-                                                
-				}
-				continue; // ?
-                            }
-                        }*/
-			/*char* plStopCheck = strstr(buffer, playlistStop);
-			if (plStopCheck != nullptr) { // otrzymano STOP PLAYLIST
-				if (playlistOn) { // playlista ' leci'
-					playlistStopNotify();
-					playlistOn = false;
-				}
-				continue; // ?
-			}*/
-			
+
 			snStart = strstr(buffer, songNameStart);
 			if( snStart != nullptr) {
 				//printf("\n'songNameStart' found:\n%s\n", snStart + sizeof(songNameStart) - 1);				
@@ -335,63 +305,158 @@ void receiveDataFromClient(int sock) {
 
 void messagesChannel(int messageSock, int sock) {
 	
-    char message[13];
+    int msgBufSize = 32; 
+    char message[msgBufSize];
+    char *msgPtr;
+
+    bool tempBuffering = false;
+    char *previous;
+    char *checkNewLine;
+    
+    std::string temp = std::string("");
+    
     int bytesRead;
     sendNewDataToClient(messageSock);
     
-    int run = 1;
-    while (run == 1) {
-        bytesRead = read(messageSock, message, sizeof(message));
+    while (1) {
+		
+        bytesRead = read(messageSock, message, msgBufSize);
+        msgPtr = message;
+
         if (bytesRead < 0) {
             // cant read from sock = disconnection?
             printf("! Troubles with reading from %d :C\n", messageSock);
             return;
         }
+        
         else if (bytesRead > 0) {
 			
-            printf("Got message: %s :), it was %d bytes. \n ", message, bytesRead);
+			// clear rest of the buffer
+			for (int i = bytesRead; i < msgBufSize; i++)
+				message[i] = '\0';
+            //printf("Got message: %.8s :), it was %d bytes.\n ", message, bytesRead);
             
-            char* checkBye = strstr(message, byeMsg);
-            char* checkFirePlList = strstr(message, playlistFire);
-            char* checkPlStop = strstr(message, playlistStop);
-            char* checkNext = strstr(message, nextSong);
-            
-            if(checkBye != nullptr) {
-                // client has disconnected
-                ptrdiff_t pos = std::distance(clientFds.begin(), std::find(clientFds.begin(), clientFds.end(), sock));
-                clientFds.erase(clientFds.begin() + pos);
-                
-                pos = std::distance(clientFdsMsg.begin(), std::find(clientFdsMsg.begin(), clientFdsMsg.end(), messageSock));
-                clientFdsMsg.erase(clientFdsMsg.begin() + pos);
-                
-                printf("\nSocket %d has sent goodbye...", sock);
-                run = 0;
-                break;
-            }
-            
-            else if(checkFirePlList != nullptr) {
-                if (!playlistOn && fileNames.size() > 0) { // playlista 'nie leci'                   
-                    playlistOn = true;
-                    playlistStartNotify();  
-                }
-            }
-            
-            else if(checkPlStop != nullptr) {
-                if (playlistOn) { // playlista ' leci'
-                    playlistStopNotify();
-                    playlistOn = false;
-                }
-            }
-            
-            else if (checkNext != nullptr) {
-				nextSongRequest = true;
+            if (tempBuffering) {
+				temp += std::string(message);
+				msgPtr = (char *) temp.c_str();
+				// printf("After concat: %s\n", msgPtr);
+
 			}
-            else {
-                printf("Warning, couldn't recognise message!\n");
-            }
+            
+            checkNewLine = strstr(msgPtr, "\n");
+       		// printf("What's going on? : %s, %d, %d, %d \n", checkNewLine, message, checkNewLine, checkNewLine-message);
+
+            if (checkNewLine == nullptr) {
+				// no \n found in all bytes read
+				tempBuffering = true;
+				temp += std::string(message, sizeof(message));
+				msgPtr = (char *) temp.c_str();
+			}
+
+            else { // there are some \n's
+                while (checkNewLine != nullptr) { // following \n's are found
+                // check what's that!
+                    if (strstr(msgPtr, byeMsg) != nullptr) {
+                            goodbyeSocket(sock, messageSock);
+                            //free(message);
+                            return;
+                    }
+                    else if (strstr(msgPtr, playlistFire) != nullptr) {
+                        if (!playlistOn && fileNames.size() > 0) {                 
+                            playlistOn = true;
+                            playlistStartNotify();  
+                        }
+                    }
+                    else if (strstr(msgPtr, playlistStop) != nullptr) {
+                        if (playlistOn) { 
+                            playlistStopNotify();
+                            playlistOn = false;
+                        }
+                    }
+                    else if (strstr(msgPtr, nextSong) != nullptr) {
+                        nextSongRequest = true;
+                    }					
+                    else if (strstr(message, songUp) != nullptr) {
+                       char* up = strstr(message, songUp);
+                       char songPos[4];
+                       memcpy(songPos, up + sizeof(songUp)-1, (checkNewLine-message)-(up-message+sizeof(songUp)-1));
+                       songPos[(checkNewLine-message)-(up-message+sizeof(songUp)-1)] = '\0';
+                       int posUp = atoi(songPos);
+                       //if (posUp == currentPlaying) {--currentFile;}
+                       //else if(posUp == (currentPlaying-1)) {++currentFile;}
+                       auto temp = fileNames[posUp-1];
+                       fileNames[posUp-1] = fileNames[posUp];
+                       fileNames[posUp] = temp;
+                       updatePlaylistInfo();
+                	}
+                    else if (strstr(message, songDown) != nullptr) {
+                    	char* down = strstr(message, songDown);
+                        char songPos[4];
+                        memcpy(songPos, down + sizeof(songDown)-1, (checkNewLine-message)-(down-message+sizeof(songDown)-1));
+                        songPos[(checkNewLine-message)-(down-message+sizeof(songDown)-1)] = '\0';
+                        int posDown = atoi(songPos);
+                        //if (posDown == currentPlaying) {++currentFile;}
+                        //else if(posDown == (currentPlaying-1)) {--currentFile;}
+                        auto temp = fileNames[posDown+1];
+                        fileNames[posDown+1] = fileNames[posDown];
+                        fileNames[posDown] = temp;
+                        updatePlaylistInfo();      
+                   	}
+                    else if (strstr(message, songDelete) != nullptr) {
+                        char* del = strstr(message, songDelete);
+                        char songPos[4];
+                        memcpy(songPos, del + sizeof(songDelete)-1, (checkNewLine-message)-(del-message+sizeof(songDelete)-1));
+                        songPos[(checkNewLine-message)-(del-message+sizeof(songDelete)-1)] = '\0';
+                        int posDel = atoi(songPos);
+                        if(posDel < currentFile) {--currentFile;}
+                        auto fileN = fileNames[posDel];
+                        
+                        fileNames.erase(fileNames.begin()+posDel);
+                        
+                        if (remove(fileN.c_str()) != 0) {
+                            printf("troubles with removing %s\n", fileN.c_str());
+                        }
+                        else {
+                            printf("removing file %s\n", fileN.c_str());
+                        }
+                        
+                        updatePlaylistInfo();
+                    }
+					else {
+						printf("Warning, couldn't recognise message!\n");
+					}
+					
+					previous = checkNewLine;
+					checkNewLine = strstr(previous+1, "\n");
+						
+				}
+				// nie ma nastepnych \n
+				if (previous+1 < msgPtr + bytesRead) {
+					// ale zostaly dane
+					temp += std::string(previous+1, (msgPtr+bytesRead - previous+1));
+					tempBuffering = true;
+				}
+				else {
+					// wszystko ok?
+					checkNewLine = nullptr;
+					tempBuffering = false;
+					temp = std::string("");
+				}
+			}
             
         }
     }
+}
+
+void goodbyeSocket(int sock, int messageSock) {
+	
+	ptrdiff_t pos = std::distance(clientFds.begin(), std::find(clientFds.begin(), clientFds.end(), sock));
+	clientFds.erase(clientFds.begin() + pos);
+
+	pos = std::distance(clientFdsMsg.begin(), std::find(clientFdsMsg.begin(), clientFdsMsg.end(), messageSock));
+	clientFdsMsg.erase(clientFdsMsg.begin() + pos);
+
+	printf("\nSocket %d has sent goodbye...", sock);
 }
     
     
@@ -507,12 +572,13 @@ void sendSongToClient() {
 	
     printf("Hello, I'll be the broadcasting thread.\n");
     
-    unsigned int clientsCount = 0;
-    int chunkSize = 16;
+    int chunkSize = 17640;
     int headerSize = 44; 
     int i, chunksCount;
     
     char *buffer = NULL;
+    char *fileDataStart = NULL;
+    
     char header[headerSize];
     char dataChunk[chunkSize];
     
@@ -527,29 +593,36 @@ void sendSongToClient() {
 		
         while (playlistOn) {
 			
-			if (currentFile == -1) {
-				if (fileNames.size() > 0) {
-					nextSongRequest = true;
-					currentFile = 0;
-				}
-				else {
-					printf("Error, tried to start playlist but there is no file to play.\n");
-					return;
-				}
-			}
+            if (currentFile == -1) {
+                if (fileNames.size() > 0) {
+                        nextSongRequest = true;
+                        // currentFile = 0;
+                }
+                else {
+                        printf("Error, tried to start playlist but there is no file to play.\n");
+                        return;
+                }
+            }
 					
 			
             if (nextSongRequest) {
+                
+                currentFile++;
+                currentFile = currentFile % fileNames.size();
 				
                 std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
                 fileSize = getFileSize(myFile);
-                buffer = getFileData(myFile);	
+                
+                delete[] fileDataStart;
+                fileDataStart = getFileData(myFile);	
+                buffer = fileDataStart;
+                
                 printf("Broadcasting song %s!\n", fileNames[currentFile].c_str());
 
                 chunksCount = (fileSize-headerSize) / chunkSize + 1;
                 i = 0;
+                bytesSent = 0;
    
-				//songsize/(44100.0 * 2.0 * (16.0/8.0));
                 memcpy(header, buffer, headerSize);
                 buffer += headerSize;
 
@@ -563,7 +636,9 @@ void sendSongToClient() {
                     write(clientFdsMsg[i], start_msg, sizeof(start_msg));
 
                     write(clientFds[i], header, headerSize);
-                }                
+                }       
+                
+                bytesSent += headerSize;         
                 songSet = true;
                 nextSongRequest = false;
                 
@@ -575,27 +650,43 @@ void sendSongToClient() {
             
             if (songSet) {
                 
-                memcpy(dataChunk, buffer, chunkSize);
-                buffer += chunkSize;
-                for (unsigned int i = 0; i < clientFds.size(); i++) {
-                    write(clientFds[i], dataChunk, chunkSize);
-                }
-                bytesSent += chunkSize;
+                if (fileSize - bytesSent >= chunkSize) { // can send one whole chunk of data (or more)
+					memcpy(dataChunk, buffer, chunkSize);
+					buffer += chunkSize;
+					for (unsigned int i = 0; i < clientFds.size(); i++) {
+						write(clientFds[i], dataChunk, chunkSize);
+					}
+					bytesSent += chunkSize;
+					// printf("Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
+				}
+				
+				else { // less than chunkSize of data remains
+					int rem = fileSize - bytesSent;
+					memcpy(dataChunk, buffer, rem);
+					buffer += rem; // (should be) end of file
+					for (unsigned int i = 0; i < clientFds.size(); i++) {
+						write(clientFds[i], dataChunk, rem);
+					}
+					bytesSent += rem;
+					// printf("[REM PART!] Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
+
+				}
+				
                 nanosleep(&interval, NULL);
-                
                 i++;
                 
             }
             
-            if (songSet && bytesSent >= fileSize - headerSize) {
+            if (songSet && bytesSent >= fileSize) {
+				// nanosleep(&interval_longer, NULL);
                 for (unsigned int i = 0; i < clientFds.size(); i++) {	
                     write(clientFdsMsg[i], stop_msg, sizeof(stop_msg));
                 }
                 printf("Sent stop...\n");
                 bytesSent = 0;
                 
-                currentFile++;
-                currentFile = currentFile % fileNames.size();
+                //currentFile++;
+                //currentFile = currentFile % fileNames.size();
                 
                 songSet = false;
                 
@@ -618,7 +709,7 @@ void broadcastToAll(std::string filename) {
 	char *buffer = getFileData(myFile);	
 	printf("Broadcasting song %s!\n", filename.c_str());
 
-	int chunkSize = 32;
+	int chunkSize = 2048;
 	int chunksCount = fileSize / chunkSize;
 	int headerSize = 44; // tak naprawdę to 44
 	

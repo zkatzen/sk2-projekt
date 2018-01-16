@@ -19,6 +19,8 @@
 #include <QMediaPlayer>
 #include <QAudioBuffer>
 
+#include <QAtomicInt>
+
 namespace Ui {
 class ClientWindow;
 }
@@ -55,6 +57,10 @@ public:
     void nextSongRequest();
     void nextSongPlease();
 
+    void upButtonClicked();
+    void downButtonClicked();
+    void deleteButtonClicked();
+
     QAudioFormat getStdAudioFormat();
 
     void someError(QTcpSocket::SocketError);
@@ -73,6 +79,8 @@ public:
     QByteArray dataFromFile;
     QByteArray *songData;
 
+    int songDataSize;
+
     bool songLoaded = false;
     bool connectedToServer = false;
     bool songLoading = false;
@@ -86,7 +94,9 @@ public:
     const QByteArray *nextSongReq = new QByteArray("^NEXT_SOONG^\n");
 
     const QByteArray *plPos = new QByteArray("POS");
-    const int minSongBytes = 44000;
+    const int minSongBytes = 44100 * 2;
+
+    int currPlPosition;
 
 
 private:
@@ -94,7 +104,6 @@ private:
 
 private slots:
     void handleStateAudioOutChanged(QAudio::State newState);
-    void positionChanged(qint64 progress);
 
 };
 
