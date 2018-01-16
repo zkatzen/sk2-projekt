@@ -553,19 +553,23 @@ void sendSongToClient() {
 		
         while (playlistOn) {
 			
-			if (currentFile == -1) {
-				if (fileNames.size() > 0) {
-					nextSongRequest = true;
-					currentFile = 0;
-				}
-				else {
-					printf("Error, tried to start playlist but there is no file to play.\n");
-					return;
-				}
-			}
+            if (currentFile == -1) {
+                if (fileNames.size() > 0) {
+                        nextSongRequest = true;
+                        // currentFile = 0;
+                }
+                else {
+                        printf("Error, tried to start playlist but there is no file to play.\n");
+                        return;
+                }
+            }
 					
 			
             if (nextSongRequest) {
+                
+                currentFile++;
+                currentFile = currentFile % fileNames.size();
+                
 				
                 std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
                 fileSize = getFileSize(myFile);
@@ -621,8 +625,8 @@ void sendSongToClient() {
                 printf("Sent stop...\n");
                 bytesSent = 0;
                 
-                currentFile++;
-                currentFile = currentFile % fileNames.size();
+                //currentFile++;
+                //currentFile = currentFile % fileNames.size();
                 
                 songSet = false;
                 

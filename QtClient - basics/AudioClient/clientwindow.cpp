@@ -243,7 +243,7 @@ void ClientWindow::dataAvailable() {
         songData->append(dataRec);
         songDataSize += dataRec.size();
         // if (songData->size() > minSongBytes)
-        // this->playFromServer();
+        this->playFromServer();
     }
 
 
@@ -285,23 +285,25 @@ void ClientWindow::msgAvailable() {
         currPlPosition = plPosition-1;
         // paint pink <3
         for (int i = 0; i < 2; i ++)
-            ui->playlistWidget->item(plPosition-1, i)->setBackgroundColor(Qt::magenta);
+            ui->playlistWidget->item(currPlPosition, i)->setBackgroundColor(Qt::magenta);
 
     }
     if (msgRec.contains(*songStartMsg)) {
         songData->clear();
         songDataSize = 0;
         songLoading = true;
+        songLoaded = false;
         ui->messageBox->append("Song -> there was 'Song Start'' in the packet!");
     }
     else if (msgRec.contains(*songStopMsg)) {
         ui->messageBox->append("Song -> there was 'Song Stop'' in the packet!");
+
         songLoaded = true;
         songLoading = false;
 
         ui->messageBox->append("Server song size is : " + QString::number(songDataSize));
         //songData->append("\0");
-        this->playFromServer();
+        //this->playFromServer();
 
     }
 
@@ -343,8 +345,9 @@ void ClientWindow::handleStateAudioOutChanged(QAudio::State newState) {
         case QAudio::IdleState:
             //audioOut->stop();
             //if (err == QAudio::NoError) {
+            if (songLoaded)
                 this->nextSongRequest();
-                audioOut->stop();
+            audioOut->stop();
             //}
             break;
 
