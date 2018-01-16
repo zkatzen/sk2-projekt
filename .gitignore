@@ -2,11 +2,7 @@ tcp_server
 QtClient - basics/build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/
 .tcp_server.cpp.kate-swp
 QtClient - basics/build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Release/
-QtClient - basics/AudioClient/AudioClient.pro.user
+QtClient - basics/AudioClient/AudioClient.pro.user*
 *.wav
-QtClient\ -\ basics/AudioClient/AudioClient.pro.*
-QtClient\ -\ basics/AudioClient/AudioClient.pro*
 song*
 *.mp3
-QtClient - basics/AudioClient/AudioClient.pro.user
-QtClient - basics/AudioClient/AudioClient.pro.user
