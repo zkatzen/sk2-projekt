@@ -27,6 +27,19 @@ ClientWindow::ClientWindow(QWidget *parent) :
     connect(ui->downButton, &QPushButton::clicked, this, &ClientWindow::downButtonClicked);
 
     socket = new QTcpSocket(this);
+    socketForMsg = new QTcpSocket(this);
+
+    connect(socket, &QTcpSocket::connected, this, &ClientWindow::doConnectMsg);
+    connect(socket, &QTcpSocket::readyRead, this, &ClientWindow::dataAvailable);
+    connect(socket, (void (QTcpSocket::*) (QTcpSocket::SocketError))
+            &QTcpSocket::error, this, &ClientWindow::sockError);
+
+    connect(socketForMsg, &QTcpSocket::connected, this, &ClientWindow::connSucceeded);
+    connect(socketForMsg, &QTcpSocket::readyRead, this, &ClientWindow::msgAvailable);
+    connect(socketForMsg, (void (QTcpSocket::*) (QTcpSocket::SocketError))
+            &QTcpSocket::error, this, &ClientWindow::msgSockError);
+
+
     songData = new QByteArray();
 
     // TYLKO Q AUDIO OUTPUT! <3
@@ -191,36 +204,34 @@ void ClientWindow::audioStart() {
 }
 
 void ClientWindow::doConnect() {
+    ui->makeConnection->setEnabled(false);
 
     auto host = ui->destAddr->text();
     auto port = ui->portNumber->value();
 
     if (socket) {
+        if (socket->state() == QTcpSocket::UnconnectedState) {
+            socket->connectToHost(host, port);
+            ui->messageBox->append("Connecting host and port...");
+        }
+        else {
+            QMessageBox::information(this, "?", "You are already connected.");
+            ui->makeConnection->setEnabled(true);
 
-        connect(socket, &QTcpSocket::connected, this, &ClientWindow::doConnectMsg);
-        connect(socket, &QTcpSocket::readyRead, this, &ClientWindow::dataAvailable);
-        connect(socket, (void (QTcpSocket::*) (QTcpSocket::SocketError))
-                &QTcpSocket::error, this, &ClientWindow::someError);
-
-        socket->connectToHost(host, port);
-
+        }
     }
 }
 
 void ClientWindow::doConnectMsg() {
+
+    auto host = ui->destAddr->text();
     int secretPort = 54321;
-    ui->messageBox->append("First connection succesful");
 
-    if (socketForMsg == nullptr && socket != nullptr) {
-
-        socketForMsg = new QTcpSocket(this);
-
-        connect(socketForMsg, &QTcpSocket::connected, this, &ClientWindow::connSucceeded);
-        connect(socketForMsg, &QTcpSocket::readyRead, this, &ClientWindow::msgAvailable);
-        connect(socketForMsg, (void (QTcpSocket::*) (QTcpSocket::SocketError))
-                &QTcpSocket::error, this, &ClientWindow::someError);
-
-        socketForMsg->connectToHost(QHostAddress::LocalHost, secretPort);
+    if (socketForMsg && socket) {
+        if (socketForMsg->state() == QTcpSocket::UnconnectedState) {
+            socketForMsg->connectToHost(host, secretPort);
+            ui->messageBox->append("Connecting host and secretPort...");
+        }
     }
 
 }
@@ -237,8 +248,9 @@ void ClientWindow::audioStahp() {
 }
 
 void ClientWindow::connSucceeded() {
-    ui->messageBox->append("Second conn succesful!");
+    ui->messageBox->append("Both connections successful!");
     ui->destAddr->setEnabled(false);
+    ui->makeConnection->setEnabled(true);
 
     this->connectedToServer = true;
     ui->sendButton->setEnabled(true);
@@ -280,9 +292,6 @@ void ClientWindow::msgAvailable() {
     }
     if (msgRec.contains(*plPos)) {
 
-        /*int currR = ui->playlistWidget->currentRow();
-        if (currR > 0)*/
-
         int posIdx = msgRec.indexOf("POS");
         QByteArray posData = msgRec.mid(posIdx + 3);
         posData.truncate(posData.indexOf("\n"));
@@ -313,8 +322,6 @@ void ClientWindow::msgAvailable() {
         songLoading = false;
 
         ui->messageBox->append("Server song size is : " + QString::number(songDataSize));
-        //songData->append("\0");
-        //this->playFromServer();
 
     }
 
@@ -435,16 +442,49 @@ void ClientWindow::sendData() {
     ;
 }
 
-void ClientWindow::someError(QTcpSocket::SocketError) {
+void ClientWindow::sockError(QTcpSocket::SocketError) {
+
     QMessageBox::critical(this, "Error", socket->errorString());
+
+    if (socket->error() == QTcpSocket::ConnectionRefusedError) {
+        ui->makeConnection->setEnabled(true);
+    }
+
     if (socket->error() == QTcpSocket::RemoteHostClosedError) {
-        ui->destAddr->setEnabled(true);
-        this->connectedToServer = false;
-        ui->sendButton->setEnabled(false);
-        ui->serverPlayButton->setEnabled(false);
-        ui->messageBox->append("\n!!! server has disconnected! \n!!! consider re-connecting ;)\n");
+
+        socketForMsg->disconnectFromHost();
+
+        socketForMsg->close();
+        socket->close();
+
+        ui->messageBox->append("!!! LOST connection with server! [socket] \n");
+        this->serverConnMode();
 
     }
+}
+
+void ClientWindow::msgSockError(QTcpSocket::SocketError) {
+
+    QMessageBox::critical(this, "Error", socketForMsg->errorString());
+
+    if (socketForMsg->error() == QTcpSocket::RemoteHostClosedError) {
+
+        socket->disconnectFromHost();
+
+        socketForMsg->close();
+        socket->close();
+
+        ui->messageBox->append("!!! LOST connection with server! [socketForMsg] \n");
+        this->serverConnMode();
+
+    }
+}
+
+void ClientWindow::serverConnMode() {
+    ui->destAddr->setEnabled(true);
+    this->connectedToServer = false;
+    ui->sendButton->setEnabled(false);
+    ui->serverPlayButton->setEnabled(false);
 }
 
 ClientWindow::~ClientWindow()

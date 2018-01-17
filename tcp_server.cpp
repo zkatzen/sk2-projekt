@@ -34,6 +34,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/functional/hash.hpp>
 
+#include <sys/epoll.h>
+
 struct client {
 	
 	client(int sock1, int sock2)
@@ -131,7 +133,7 @@ void setReuseAddr(int sock);
 void setKeepAlive(int sock);
 
 // threads stuff
-void receiveDataFromClient(int sock);
+void receiveDataFromClient(int sock, int msgSock);
 void messagesChannel(int messageSock, int sock);
 void sendNewDataToClient(int sock);
 
@@ -181,18 +183,21 @@ int main(int argc, char **argv){
 	// bind to any address and port provided in arguments
 	sockaddr_in serverAddr{.sin_family=AF_INET, .sin_port=htons((short)port), .sin_addr={INADDR_ANY}};
 	int res = bind(servFd, (sockaddr*) &serverAddr, sizeof(serverAddr));
-	if(res) error(1, errno, "bind failed");
+	if(res) error(1, errno, "[1] bind failed");
 	
 	// enter listening mode
-	res = listen(servFd, 1);
-	if(res) error(1, errno, "listen failed");
+	res = listen(servFd, 10); // chyba wieksza ta kolejka
+	if(res) 
+		error(1, errno, "[1] listen failed");
 	
 	//again for port for special messages
 	sockaddr_in serverAddrMsg{.sin_family=AF_INET, .sin_port=htons((short)portMsg), .sin_addr={INADDR_ANY}};
 	res = bind(servFdMsg, (sockaddr*) &serverAddrMsg, sizeof(serverAddrMsg));
-	if(res) error(1, errno, "bind failed");
-	res = listen(servFdMsg, 1);
-	if(res) error(1, errno, "listen failed");
+	if(res) 
+		error(1, errno, "[2] bind failed");
+	res = listen(servFdMsg, 10);
+	if(res) 
+		error(1, errno, "[2] listen failed");
         
 	currentFile = -1;
 /****************************/
@@ -205,20 +210,20 @@ int main(int argc, char **argv){
 		sockaddr_in clientAddr{0};
 		socklen_t clientAddrSize = sizeof(clientAddr);
 		
+		printf("\nAwaiting new connections...\n");
+		
 		// accept new connection
 		auto clientFd = accept(servFd, (sockaddr*) &clientAddr, &clientAddrSize);
-		if (clientFd == -1) error(1, errno, "accept failed");
+		if (clientFd == -1) 
+			error(1, errno, "[1] accept failed");
+		printf("! [1] New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFd);
+
+		auto clientFdMsg = accept(servFdMsg, (sockaddr*) &clientAddr, &clientAddrSize);
+		if (clientFdMsg == -1) 
+			error(1, errno, "[2] accept failed");
+		printf("! [2] New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFdMsg);
 		
-		// add client to all clients set
-		// clientFds.push_back(clientFd);
-		
-		// tell who has connected
-		printf("! New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFd);
-		
-		//std::thread d(sendNewDataToClient, clientFd);
-		std::thread t(receiveDataFromClient, clientFd);
-		
-		//d.detach();
+		std::thread t(receiveDataFromClient, clientFd, clientFdMsg);
 		t.detach();
 
 	}
@@ -286,20 +291,12 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 }
 
 
-void receiveDataFromClient(int sock) {
+void receiveDataFromClient(int sock, int msgSock) {
 	
-	sockaddr_in clientAddr{0};
-	socklen_t clientAddrSize = sizeof(clientAddr);
-	auto clientFdMsg = accept(servFdMsg, (sockaddr*) &clientAddr, &clientAddrSize);
-	if (clientFdMsg == -1) 
-		error(1, errno, "accept failed");
-	
-	struct client newClient = client(clientFdMsg, sock);
+	struct client newClient = client(msgSock, sock);
 	clients.insert(newClient);
-	
-	printf("! New messaging chanell from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFdMsg);
-	
-	std::thread tt(messagesChannel, clientFdMsg, sock);	
+		
+	std::thread tt(messagesChannel, msgSock, sock);	
 	tt.detach();
         
 	int fileFd = -1;
@@ -775,6 +772,7 @@ void ctrl_c(int){
 		}
 	}
 	close(servFd);
+	close(servFdMsg);
 	printf("Closing server\n");
 	exit(0);
 }

@@ -62,9 +62,11 @@ public:
 
     QAudioFormat getStdAudioFormat();
 
-    void someError(QTcpSocket::SocketError);
+    void sockError(QTcpSocket::SocketError);
+    void msgSockError(QTcpSocket::SocketError);
 
     void updatePlaylist(QByteArray playlistData);
+    void serverConnMode();
 
     QTcpSocket *socket = nullptr;
     QTcpSocket *socketForMsg = nullptr;
