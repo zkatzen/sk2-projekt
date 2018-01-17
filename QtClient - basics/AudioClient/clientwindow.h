@@ -59,6 +59,7 @@ public:
 
     void upButtonClicked();
     void downButtonClicked();
+    void deleteButtonClicked();
 
     QAudioFormat getStdAudioFormat();
 

@@ -86,6 +86,7 @@ char nextSong[] = "^NEXT_SOONG^";
 
 char songUp[] = "SONG_UP_";
 char songDown[] = "SONG_DO_";
+char songDelete[] = "SONG_DEL_";
 char playlistPos[] = "POS%d\n";
 
 // zmienna 'czy nadajemy z playlisty, czy nie?'
@@ -222,7 +223,7 @@ int main(int argc, char **argv){
 		if (clientFdMsg == -1) 
 			error(1, errno, "[2] accept failed");
 		printf("! [2] New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFdMsg);
-		
+
 		std::thread t(receiveDataFromClient, clientFd, clientFdMsg);
 		t.detach();
 
@@ -312,7 +313,7 @@ void receiveDataFromClient(int sock, int msgSock) {
 	
 	int bytesTotal = 0, bytesRead, bytesSong = 0;
 	char *snStart, *snEnd, *sdStart;
-	double songDuration = 0.0;
+	//double songDuration = 0.0;
 
 	
 	while (1) {
@@ -450,10 +451,10 @@ void messagesChannel(int messageSock, int sock) {
 			}
 
             else { // there are some \n's
+
 				while (checkNewLine != nullptr) { // following \n's are found
 					
-					// check what's that!
-					
+					// check what's that!					
 					int result = handleServerMsgs(msgPtr, sock, messageSock);
 					if (result == -1)
 						return;
@@ -598,7 +599,6 @@ void sendSongToClient() {
 	
     printf("Hello, I'll be the broadcasting thread.\n");
     
-    unsigned int clientsCount = 0;
     int chunkSize = 17640;
     int headerSize = 44; 
     int i, chunksCount;

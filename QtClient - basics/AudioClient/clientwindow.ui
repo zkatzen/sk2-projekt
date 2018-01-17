@@ -95,19 +95,6 @@
      <string>... .wav filename ...</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="stopButton">
-    <property name="geometry">
-     <rect>
-      <x>80</x>
-      <y>310</y>
-      <width>71</width>
-      <height>22</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>stop</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="serverPlayButton">
     <property name="enabled">
      <bool>false</bool>
@@ -122,19 +109,6 @@
     </property>
     <property name="text">
      <string>Is there something to play?</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="startButton">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>310</y>
-      <width>71</width>
-      <height>22</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>start</string>
     </property>
    </widget>
    <widget class="QPushButton" name="sendButton">
@@ -207,19 +181,6 @@
     <column/>
     <column/>
    </widget>
-   <widget class="QPushButton" name="pushMeButton">
-    <property name="geometry">
-     <rect>
-      <x>70</x>
-      <y>340</y>
-      <width>121</width>
-      <height>27</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Push Me! :)</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="firePlaylistButton">
     <property name="geometry">
      <rect>
@@ -243,7 +204,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>STOP :[</string>
+     <string>STOP</string>
     </property>
    </widget>
    <widget class="QPushButton" name="nextSongButton">
@@ -273,7 +234,7 @@
     </property>
     <property name="icon">
      <iconset>
-      <normaloff>up.png</normaloff>up.png</iconset>
+      <normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/up.png</normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/up.png</iconset>
     </property>
    </widget>
    <widget class="QPushButton" name="downButton">
@@ -290,7 +251,20 @@
     </property>
     <property name="icon">
      <iconset>
-      <normaloff>down.png</normaloff>down.png</iconset>
+      <normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/down.png</normaloff>../build-AudioClient-Desktop_Qt_5_7_0_GCC_64bit-Debug/down.png</iconset>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="deleteButton">
+    <property name="geometry">
+     <rect>
+      <x>550</x>
+      <y>280</y>
+      <width>71</width>
+      <height>61</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>DELETE</string>
     </property>
    </widget>
   </widget>
