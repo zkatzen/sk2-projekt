@@ -24,6 +24,7 @@
 #include <vector>
 #include <map>
 #include <atomic>
+#include <condition_variable>
 
 #include <stdio.h>
 #include <string.h>
@@ -92,6 +93,8 @@ char playlistPos[] = "POS%d\n";
 
 // zmienna 'czy nadajemy z playlisty, czy nie?'
 std::atomic<bool> playlistOn (false);
+std::mutex cv_m;
+std::condition_variable cv;
 
 std::atomic<bool> nextSongRequest (false);
 
@@ -240,7 +243,10 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 	}
 	else if (strstr(msg, playlistFire) != nullptr) {
 		if (!playlistOn && fileNames.size() > 0) {                 
+			
+			std::lock_guard<std::mutex> lk(cv_m);
 			playlistOn = true;
+			cv.notify_all();
 			playlistStartNotify();  
 		}
 	}
@@ -672,101 +678,98 @@ void sendSongToClient() {
     int bytesSent = 0;
     
     while (1) {
-		
-        while (playlistOn) {
-			
-        	if (currentFile == -1) {
-                if (fileNames.size() > 0) {
-                	nextSongRequest = true;
-                    // currentFile = 0;
-                }
-                else {
-                    printf("Error, tried to start playlist but there is no file to play.\n");
-                    return;
-                }
+		std::unique_lock<std::mutex> lk(cv_m);
+        cv.wait(lk, []{return playlistOn == true;});
+        
+        if (currentFile == -1) {
+			if (fileNames.size() > 0) {
+				nextSongRequest = true;
+                // currentFile = 0;
             }
-			
-            if (nextSongRequest) {
-                
-                currentFile++;
-                currentFile = currentFile % fileNames.size();
-				
-                std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
-                fileSize = getFileSize(myFile);
-                
-                delete[] fileDataStart;
-                fileDataStart = getFileData(myFile);	
-                buffer = fileDataStart;
-                
-                printf("Broadcasting song %s!\n", fileNames[currentFile].c_str());
-
-                chunksCount = (fileSize-headerSize) / chunkSize + 1;
-                i = 0;
-                bytesSent = 0;
-   
-                memcpy(header, buffer, headerSize);
-                buffer += headerSize;
-
-                printf("Sending start... chunksCount - %d\n", chunksCount);
-                
-                int res = sprintf(plPosBuf, playlistPos, currentFile+1);
-
-                for (client c : clients) {
-					write(c.msgSock, plPosBuf, res + 1);                    
-                    write(c.msgSock, start_msg, sizeof(start_msg));
-
-                    write(c.songSock, header, headerSize);
-				}      
-                
-                bytesSent += headerSize;         
-                songSet = true;
-                nextSongRequest = false;
-                
-                printf("Song set\n");
-                
-                nanosleep(&interval, NULL);
+            else {
+                printf("Error, tried to start playlist but there is no file to play.\n");
+                return;
             }
+        }
+			
+        if (nextSongRequest) {
             
-            if (songSet) {
+            currentFile++;
+            currentFile = currentFile % fileNames.size();
+				
+            std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
+            fileSize = getFileSize(myFile);
+            
+            delete[] fileDataStart;
+            fileDataStart = getFileData(myFile);	
+            buffer = fileDataStart;
+            
+            printf("Broadcasting song %s!\n", fileNames[currentFile].c_str());
+            chunksCount = (fileSize-headerSize) / chunkSize + 1;
+            i = 0;
+            bytesSent = 0;
+            memcpy(header, buffer, headerSize);
+            buffer += headerSize;
+
+            printf("Sending start... chunksCount - %d\n", chunksCount);
                 
-                if (fileSize - bytesSent >= chunkSize) { // can send one whole chunk of data (or more)
-					memcpy(dataChunk, buffer, chunkSize);
-					buffer += chunkSize;
-					for (client c : clients) {
-						write(c.songSock, dataChunk, chunkSize);
-					}
-					bytesSent += chunkSize;
+            int res = sprintf(plPosBuf, playlistPos, currentFile+1);
+
+            for (client c : clients) {
+				write(c.msgSock, plPosBuf, res + 1);                    
+                write(c.msgSock, start_msg, sizeof(start_msg));
+
+                write(c.songSock, header, headerSize);
+			}      
+                
+            bytesSent += headerSize;         
+            songSet = true;
+            nextSongRequest = false;
+            
+            printf("Song set\n");
+            
+            nanosleep(&interval, NULL);
+        }
+            
+        if (songSet) {
+            
+            if (fileSize - bytesSent >= chunkSize) { // can send one whole chunk of data (or more)
+				memcpy(dataChunk, buffer, chunkSize);
+				buffer += chunkSize;
+				for (client c : clients) {
+					write(c.songSock, dataChunk, chunkSize);
+				}
+				bytesSent += chunkSize;
 					// printf("Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
-				}
+			}
 				
-				else { // less than chunkSize of data remains
-					int rem = fileSize - bytesSent;
-					memcpy(dataChunk, buffer, rem);
-					buffer += rem; // (should be) end of file
-					for (client c : clients) {
-						write(c.songSock, dataChunk, rem);
-					}
-					bytesSent += rem;
-					// printf("[REM PART!] Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
-
+			else { // less than chunkSize of data remains
+				int rem = fileSize - bytesSent;
+				memcpy(dataChunk, buffer, rem);
+				buffer += rem; // (should be) end of file
+				for (client c : clients) {
+					write(c.songSock, dataChunk, rem);
 				}
+				bytesSent += rem;
+				// printf("[REM PART!] Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
+
+			}
 				
-                nanosleep(&interval, NULL);
-                i++;
+            nanosleep(&interval, NULL);
+            i++;
                 
-            }
-            
-            if (songSet && bytesSent >= fileSize) {
+        }
+           
+        if (songSet && bytesSent >= fileSize) {
 
-                for (client c : clients) {
-					write(c.msgSock, stop_msg, sizeof(stop_msg));
-				}
+            for (client c : clients) {
+				write(c.msgSock, stop_msg, sizeof(stop_msg));
+			}
                 
-                printf("Sent stop...\n");
-                bytesSent = 0;
+            printf("Sent stop...\n");
+            bytesSent = 0;
 
-                songSet = false;
-            }
+            songSet = false;
         }
     }
 }
