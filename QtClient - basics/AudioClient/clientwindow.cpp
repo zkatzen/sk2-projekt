@@ -145,13 +145,21 @@ void ClientWindow::sendSongToServer() {
 
     else if (connectedToServer) {
 
+        ui->sendButton->setEnabled(false);
+
         socket->write("fn:"); //znaczniki ktore wiadomosci dotycza czego, tak jak start+stop
         socket->write(loadedFileName.toUtf8()); //bez informacji o lokalizacji pliku (bez path)
         // wysylanie rozmiaru pliku, w odpowiednim formacie
         socket->write(QByteArray::number(sourceFile.size(), 10));
+        socket->write("\n"); // end of song info
+
+
         socket->write(dataFromFile);
+        socket->write("\n");
         ui->messageBox->append("\nSent " + loadedFileName + " file to server (or attempted to ;)), file size was " +
                                QString::number(sourceFile.size()));
+
+        ui->sendButton->setEnabled(true);
 
     }
 }
@@ -467,6 +475,8 @@ void ClientWindow::sockError(QTcpSocket::SocketError) {
         socketForMsg->close();
         socket->close();
 
+        ui->playlistWidget->clear();
+
         ui->messageBox->append("!!! LOST connection with server! [socket] \n");
         this->serverConnMode();
 
@@ -483,6 +493,8 @@ void ClientWindow::msgSockError(QTcpSocket::SocketError) {
 
         socketForMsg->close();
         socket->close();
+
+        ui->playlistWidget->clear();
 
         ui->messageBox->append("!!! LOST connection with server! [socketForMsg] \n");
         this->serverConnMode();
