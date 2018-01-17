@@ -209,7 +209,7 @@ void ClientWindow::doConnect() {
 
 void ClientWindow::doConnectMsg() {
     int secretPort = 54321;
-    ui->messageBox->append("First connection succesfull");
+    ui->messageBox->append("First connection succesful");
 
     if (socketForMsg == nullptr && socket != nullptr) {
 
