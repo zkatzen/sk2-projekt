@@ -1,5 +1,5 @@
 #!/bin/bash
-g++ -Wall --std=c++11 -pthread tcp_server.cpp -o tcp_server  -lboost_system -lboost_filesystem
+make
 if [ $? -ne 0 ]
 then
 	echo "Got errors, didn't compile."
