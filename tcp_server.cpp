@@ -161,6 +161,8 @@ void goodbyeSocket(int sock, int messageSock);
 
 int handleServerMsgs(char* msg, int sock, int mesageSock);
 
+void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize);
+
 int main(int argc, char **argv){
 	// get and validate port number
 	if(argc != 4) error(1, 0, "Need 3 args: port + filename + port");
@@ -284,23 +286,23 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 		fileNames[posDown] = temp;
 		updatePlaylistInfo(); 
 	}
-	else if (strstr(message, songDelete) != nullptr) {
-		char* del = strstr(message, songDelete);
+	else if (strstr(msg, songDelete) != nullptr) {
+		char* del = strstr(msg, songDelete);
  		char songPos[4];
-		memcpy(songPos, del + sizeof(songDelete)-1, (checkNewLine-message)-(del-message+sizeof(songDelete)-1));
-		songPos[(checkNewLine-message)-(del-message+sizeof(songDelete)-1)] = '\0';
+		memcpy(songPos, del + sizeof(songDelete)-1, (newLinePtr-msg)-(del-msg+sizeof(songDelete)-1));
+		songPos[(newLinePtr-msg)-(del-msg+sizeof(songDelete)-1)] = '\0';
 		int posDel = atoi(songPos);
 		if(posDel < currentFile) {--currentFile;}
-			auto fileN = fileNames[posDel];             
-			fileNames.erase(fileNames.begin()+posDel);
-              
-			if (remove(fileN.c_str()) != 0) {
-				printf("troubles with removing %s\n", fileN.c_str());
-			}
-			else {
-				printf("removing file %s\n", fileN.c_str());
-			}
-			updatePlaylistInfo();
+		auto fileN = fileNames[posDel];             
+		fileNames.erase(fileNames.begin()+posDel);
+             
+		if (remove(fileN.c_str()) != 0) {
+			printf("troubles with removing %s\n", fileN.c_str());
+		}
+		else {
+			printf("removing file %s\n", fileN.c_str());
+		}
+		updatePlaylistInfo();
 	}
 	else {
 		printf("Warning, couldn't recognise message!\n");
@@ -316,88 +318,72 @@ void receiveDataFromClient(int sock, int msgSock) {
 		
 	std::thread tt(messagesChannel, msgSock, sock);	
 	tt.detach();
-        
-	int fileFd = -1;
-	int bytesWritten;
-	
+
 	std::string fileName;
 	std::string clientsFileName;	
-	
-	int songSize = 0;	
-	char songS[20];
-	
-	char buffer[4096]; 
-	
-	int bytesTotal = 0, bytesRead, bytesSong = 0;
-	char *snStart, *snEnd, *sdStart;
-	//double songDuration = 0.0;
 
+	char buffer[1024]; // tu może więcej gazu
+	std::string previousBuffer = std::string("");
+	
+	int bytesRead;
+	//double songDuration = 0.0;
+	
+	std::string songInfoStr = std::string("");
+	// BLA BLA BLA
+	
+	std::string buf;
+	buf.reserve(1024);
 	
 	while (1) {
-                
-		if(fileFd != -1 && (unsigned int)(songSize-bytesSong) < sizeof(buffer))
-			bytesRead = read(sock, buffer, songSize-bytesSong);
-		else 
-			bytesRead = read(sock, buffer, sizeof(buffer));
+
+		bytesRead = read(sock, buffer, sizeof(buffer));
 
 		if (bytesRead > 0) {
-			bytesTotal += bytesRead;
+			
+			for (unsigned int i = bytesRead; i < sizeof(buffer); i++)
+				buffer[i] = '\0';
+							printf("%s\n", buffer);
 
-			snStart = strstr(buffer, songNameStart);
-			if( snStart != nullptr) {
-				//printf("\n'songNameStart' found:\n%s\n", snStart + sizeof(songNameStart) - 1);				
-			}	
-		
-			snEnd = strstr(buffer, songNameEnd);
-			if (snEnd != nullptr) {
-				char getFn[snEnd - (snStart + sizeof(songNameStart) - 1)];
-				strncpy(getFn, snStart + sizeof(songNameStart) - 1, snEnd - (snStart + sizeof(songNameStart) - 1));
-				clientsFileName = std::string(getFn);
+			char *checkNewLine = strstr(buffer, "\n");
+			
+			if (checkNewLine == nullptr) {
+				buf += std::string(buffer, bytesRead);
 			}
-			
-			sdStart = strstr(buffer, songDataStart);
-			if (snEnd != nullptr && sdStart != nullptr) {
+			else {
+				buf += std::string(buffer, checkNewLine-buffer);
+				printf("End of buffering with result <%s>\n", buf.c_str());
 				
-				bytesSong = 0;
-				memcpy(songS, snEnd + sizeof(songNameEnd)-1, (sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1)); // jaaa...
-				songS[(sdStart-buffer)-(snEnd-buffer+sizeof(songNameEnd)-1)] = '\0';
-				songSize = atoi(songS);
-				printf("SongSize = %d\n", songSize);
-								
-				char fN[] = "songXXXXXX.wav";
-				fileFd = mkostemps(fN,4, O_APPEND);
-				
-				fileName = std::string(fN);				
-				bytesWritten = write(fileFd, sdStart, bytesRead-(int)(sdStart-buffer));
-				bytesSong += bytesWritten;
-				
-			}	
-			
-			if (fileFd != -1) {
-				// file was created and we're writin'
-				bytesWritten = write(fileFd, buffer, bytesRead);
-				bytesSong += bytesWritten;
-			}
-			
-			if (bytesSong == songSize) {
-				// udalo sie zapisac do pliku całą piosenkę (na podstawie ilości bajtów)
-				fileNames.push_back(fileName);
-				printf("\nLoaded song, closing file '%s'...\n", fileName.c_str());
-				if (close(fileFd) == 0) {
-					printf("-> Closed!\n");
-				} 
-				else {
-					printf("! Error, file couldn't be closed properly!\n");
+				if (checkNewLine+1 < buffer + bytesRead) {
+					loadSong(sock, buf, checkNewLine+1, buffer + bytesRead - (checkNewLine+1));
 				}
-				
-				fileNamesDict[fileName] = clientsFileName;
-				playList[fileName] = "socket '" + std::to_string(sock) + "'";
+				else {
+					loadSong(sock, buf, NULL, 0);
+				}
 
-				updatePlaylistInfo();
-				bytesSong = 0;
-				fileFd = -1;
-				songS[0] = '\0';	
-			}
+				buf.clear();
+				if (checkNewLine-buffer+1 == sizeof(buffer) || checkNewLine + 1 == '\0') {
+					// end of message
+				}
+				else {
+					// there's something
+					checkNewLine += 1;
+					char *anotherLine = strstr(checkNewLine, "\n");
+					while (anotherLine != nullptr) {
+						std::string message = std::string(checkNewLine, anotherLine-checkNewLine);
+						
+						// process message ? nie wiem jaka szansa że to się wydarzy
+						printf("message %s\n", message.c_str());
+						checkNewLine = anotherLine + 1;
+						anotherLine = strstr(checkNewLine, "\n");
+					}
+					// no \n's left
+					if (checkNewLine < buffer+bytesRead) {
+						buf += std::string(checkNewLine, bytesRead - (checkNewLine-buffer));
+						
+					}
+				}																		
+			} 
+			
 		}
 		
 		else if (bytesRead == 0) {
@@ -409,7 +395,6 @@ void receiveDataFromClient(int sock, int msgSock) {
 			printf("! Troubles with reading from %d :C\n", sock);
 			return;
 		}
-		// buffer[0] = '\0';	
 
 	}
 	
@@ -501,6 +486,63 @@ void goodbyeSocket(int sock, int messageSock) {
 	clients.erase(client(sock, messageSock));
 	printf("\nSocket %d has sent goodbye...", sock);
 }
+
+void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize) {
+	char buffer[4096];
+	
+	std::size_t fNStart = songInfo.find(songNameStart) + sizeof(songNameStart) - 1;
+	std::size_t fSizeStart = songInfo.find(songNameEnd) + sizeof(songNameEnd) - 1;
+	
+	if (fNStart == std::string::npos || fSizeStart == std::string::npos) {
+		printf("ERROR! loadSong -> Got incorrect songInfo.\n");
+		return;
+	}
+	
+	std::string clientsFileName = songInfo.substr(fNStart, fSizeStart - fNStart);
+	std::string songSizeStr = songInfo.substr(fSizeStart);
+	// printf("[%s], [%s]\n", clientsFileName.c_str(), songSize.c_str());
+	int songSize = atoi(songSizeStr.c_str()); printf("SONG SIZE %d\n", songSize);
+	int bytesWritten = 0;
+	
+	char fN[] = "songXXXXXX.wav";
+	int	fileFd = mkostemps(fN, 4, O_APPEND);
+	
+	if (currentBufSize > 0) {
+		// we got song info + some song data from the beginning of the file in the buffer,
+		// so we write it to file
+		bytesWritten += write(fileFd, currentBuffer, currentBufSize);
+		printf("%d\n", bytesWritten);
+	}
+	
+	int bytesReceived;
+	while (bytesWritten < songSize) {
+		bytesReceived = read(sock, buffer, sizeof(buffer));
+		write(fileFd, buffer, bytesReceived);
+		bytesWritten += bytesReceived;
+	} // songSize + 1 - klient nadał "\n"
+	printf("GOT IT!\n");
+
+	std::string fileName = std::string(fN);
+	fileNames.push_back(fileName);
+	printf("Loaded song, closing file '%s'...\n", fN);
+	
+	if (close(fileFd) == 0) {
+		printf("-> Closed!\n");
+		fileFd = -1;
+	} 
+	else {
+		printf("! Error, file couldn't be closed properly!\n");
+	}
+	
+	fileNamesDict[fileName] = clientsFileName;
+	playList[fileName] = "socket '" + std::to_string(sock) + "'";
+
+	updatePlaylistInfo();
+	printf("Whole song received. <3\n");
+	return;					
+
+};
+
     
     
     
