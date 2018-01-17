@@ -23,6 +23,7 @@
 #include <signal.h>
 #include <vector>
 #include <map>
+#include <atomic>
 
 #include <stdio.h>
 #include <string.h>
@@ -90,13 +91,11 @@ char songDelete[] = "SONG_DEL_";
 char playlistPos[] = "POS%d\n";
 
 // zmienna 'czy nadajemy z playlisty, czy nie?'
-bool playlistOn = false;
-char *dataBuffer;
+std::atomic<bool> playlistOn (false);
 
-bool nextSongRequest = false;
+std::atomic<bool> nextSongRequest (false);
 
-std::string currFilename;
-int currentPlaying = 0;
+std::atomic<int>  currentPlaying (0);
 
 // server socket
 int servFd;
@@ -110,7 +109,7 @@ std::vector<std::thread> clientThreads;
 
 // files names
 std::vector<std::string> fileNames;
-int currentFile; // idx for file that we are broadcasting (or clients are listening to)
+std::atomic<int> currentFile; // idx for file that we are broadcasting (or clients are listening to)
 
 // clients and servers file names
 std::map<std::string, std::string> fileNamesDict;
@@ -203,7 +202,7 @@ int main(int argc, char **argv){
 	currentFile = -1;
 	std::thread br(sendSongToClient);
     br.detach();
-    
+    	//currentPlaying = 0;
 	while(true) {
 
 		// prepare placeholders for client address
@@ -283,6 +282,24 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 		fileNames[posDown+1] = fileNames[posDown];
 		fileNames[posDown] = temp;
 		updatePlaylistInfo(); 
+	}
+	else if (strstr(msg, songDelete) != nullptr) {
+		char* del = strstr(msg, songDelete);
+ 		char songPos[4];
+		memcpy(songPos, del + sizeof(songDelete)-1, (newLinePtr-msg)-(del-msg+sizeof(songDelete)-1));
+		songPos[(newLinePtr-msg)-(del-msg+sizeof(songDelete)-1)] = '\0';
+		int posDel = atoi(songPos);
+		if(posDel < currentFile) {--currentFile;}
+		auto fileN = fileNames[posDel];             
+		fileNames.erase(fileNames.begin()+posDel);
+             
+		if (remove(fileN.c_str()) != 0) {
+			printf("troubles with removing %s\n", fileN.c_str());
+		}
+		else {
+			printf("removing file %s\n", fileN.c_str());
+		}
+		updatePlaylistInfo();
 	}
 	else {
 		printf("Warning, couldn't recognise message!\n");
@@ -658,17 +675,16 @@ void sendSongToClient() {
 		
         while (playlistOn) {
 			
-            if (currentFile == -1) {
+        	if (currentFile == -1) {
                 if (fileNames.size() > 0) {
-                        nextSongRequest = true;
-                        // currentFile = 0;
+                	nextSongRequest = true;
+                    // currentFile = 0;
                 }
                 else {
-                        printf("Error, tried to start playlist but there is no file to play.\n");
-                        return;
+                    printf("Error, tried to start playlist but there is no file to play.\n");
+                    return;
                 }
             }
-					
 			
             if (nextSongRequest) {
                 
@@ -709,7 +725,6 @@ void sendSongToClient() {
                 printf("Song set\n");
                 
                 nanosleep(&interval, NULL);
-                
             }
             
             if (songSet) {
@@ -751,13 +766,9 @@ void sendSongToClient() {
                 bytesSent = 0;
 
                 songSet = false;
-
             }
-            
         }
-        
     }
-    
 }
 
 int countDigits(int n) {
@@ -796,7 +807,6 @@ void setKeepAlive(int sock) {
 }
 
 void ctrl_c(int){
-	free(dataBuffer);
 	for (client c : clients) {
 		close(c.msgSock);
 		close(c.songSock);
