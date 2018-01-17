@@ -158,9 +158,7 @@ void playlistStartNotify();
 void playlistStopNotify();
 
 void goodbyeSocket(int sock, int messageSock);
-
 int handleServerMsgs(char* msg, int sock, int mesageSock);
-
 void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize);
 
 int main(int argc, char **argv){
@@ -202,7 +200,6 @@ int main(int argc, char **argv){
 		error(1, errno, "[2] listen failed");
         
 	currentFile = -1;
-	//thread sending songs to clients
 	std::thread br(sendSongToClient);
     br.detach();
     	//currentPlaying = 0;
