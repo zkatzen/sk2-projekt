@@ -279,6 +279,7 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 			{
 				std::lock_guard<std::mutex> lk(cv_m);
 				playlistOn = true;
+				printf("UNLOCKING");
 			}
 			cv.notify_all();
 			playlistStartNotify();  
@@ -536,7 +537,16 @@ void goodbyeSocket(int sock, int messageSock) {
 	close(messageSock);
 	
 	std::lock_guard<std::mutex> lk(clients_mutex);
-	clients.erase(client(sock, messageSock));
+	
+	
+	for (auto it = clients.begin(); it != clients.end(); (*it).songSock == sock ? it = clients.erase(it) : ++it)
+    ;
+	
+	if (clients.empty()) {
+		playlistStopNotify();
+		playlistOn = false;
+		currentFile = -1;
+	}
 	printf("\nSocket %d has sent goodbye...\n", sock);
 }
 
@@ -751,8 +761,9 @@ void sendSongToClient() {
     while (1) {
 		std::unique_lock<std::mutex> lk(cv_m);
         cv.wait(lk, []{return playlistOn == true;});
-        
+        std::cout << "CURR " << currentFile << std::endl;
         if (currentFile == -1) {
+			printf("no current file");
 			if (fileNames.size() > 0) {
 				nextSongRequest = true;
                 // currentFile = 0;
