@@ -105,12 +105,14 @@ int servFd;
 int servFdMsg;
 
 // client sockets
+std::mutex clients_mutex;
 std::unordered_set<client> clients;
 
 // client threads
 std::vector<std::thread> clientThreads;
 
 // files names
+std::mutex fileNames_mutex;
 std::vector<std::string> fileNames;
 std::atomic<int> currentFile; // idx for file that we are broadcasting (or clients are listening to)
 
@@ -243,9 +245,10 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 	}
 	else if (strstr(msg, playlistFire) != nullptr) {
 		if (!playlistOn && fileNames.size() > 0) {                 
-			
-			std::lock_guard<std::mutex> lk(cv_m);
-			playlistOn = true;
+			{
+				std::lock_guard<std::mutex> lk(cv_m);
+				playlistOn = true;
+			}
 			cv.notify_all();
 			playlistStartNotify();  
 		}
@@ -317,8 +320,12 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 void receiveDataFromClient(int sock, int msgSock) {
 	
 	struct client newClient = client(msgSock, sock);
-	clients.insert(newClient);
-		
+	{
+		std::lock_guard<std::mutex> lk(clients_mutex);
+		clients.insert(newClient);
+	}
+
+	
 	std::thread tt(messagesChannel, msgSock, sock);	
 	tt.detach();
 
@@ -486,6 +493,7 @@ void messagesChannel(int messageSock, int sock) {
 }
 
 void goodbyeSocket(int sock, int messageSock) {
+	std::lock_guard<std::mutex> lk(clients_mutex);
 	clients.erase(client(sock, messageSock));
 	printf("\nSocket %d has sent goodbye...", sock);
 }
@@ -550,6 +558,7 @@ void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentB
     
     
 void playlistStartNotify() {
+	std::lock_guard<std::mutex> lk(clients_mutex);
 	for (client c : clients) {
 		write(c.msgSock, playlistFire, sizeof(playlistFire));
 	}
@@ -557,6 +566,7 @@ void playlistStartNotify() {
 }
 
 void playlistStopNotify() {
+	std::lock_guard<std::mutex> lk(clients_mutex);
 	for (client c : clients) {
 		write(c.msgSock, playlistStop, sizeof(playlistStop));
 	}
@@ -579,6 +589,7 @@ void updatePlaylistInfo() {
 	if (playlist.length() == 0) {
 		return;
 	}
+	std::lock_guard<std::mutex> lk(clients_mutex);
 	for (client c : clients) {
 		sendPlaylistInfo(c.msgSock, playlist);
 	}
@@ -714,13 +725,16 @@ void sendSongToClient() {
             printf("Sending start... chunksCount - %d\n", chunksCount);
                 
             int res = sprintf(plPosBuf, playlistPos, currentFile+1);
-
-            for (client c : clients) {
-				write(c.msgSock, plPosBuf, res + 1);                    
-                write(c.msgSock, start_msg, sizeof(start_msg));
-
-                write(c.songSock, header, headerSize);
-			}      
+			{
+				std::lock_guard<std::mutex> lk1(clients_mutex);
+				for (client c : clients) {
+					write(c.msgSock, plPosBuf, res + 1);                    
+					write(c.msgSock, start_msg, sizeof(start_msg));
+	
+					write(c.songSock, header, headerSize);
+				}
+			}
+			
                 
             bytesSent += headerSize;         
             songSet = true;
@@ -736,8 +750,11 @@ void sendSongToClient() {
             if (fileSize - bytesSent >= chunkSize) { // can send one whole chunk of data (or more)
 				memcpy(dataChunk, buffer, chunkSize);
 				buffer += chunkSize;
-				for (client c : clients) {
-					write(c.songSock, dataChunk, chunkSize);
+				{
+					std::lock_guard<std::mutex> lk(clients_mutex);
+					for (client c : clients) {
+						write(c.songSock, dataChunk, chunkSize);
+					}
 				}
 				bytesSent += chunkSize;
 					// printf("Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
@@ -747,8 +764,11 @@ void sendSongToClient() {
 				int rem = fileSize - bytesSent;
 				memcpy(dataChunk, buffer, rem);
 				buffer += rem; // (should be) end of file
-				for (client c : clients) {
-					write(c.songSock, dataChunk, rem);
+				{
+					std::lock_guard<std::mutex> lk(clients_mutex);
+					for (client c : clients) {
+						write(c.songSock, dataChunk, rem);
+					}
 				}
 				bytesSent += rem;
 				// printf("[REM PART!] Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
@@ -761,11 +781,12 @@ void sendSongToClient() {
         }
            
         if (songSet && bytesSent >= fileSize) {
-
-            for (client c : clients) {
-				write(c.msgSock, stop_msg, sizeof(stop_msg));
+			{
+				std::lock_guard<std::mutex> lk(clients_mutex);
+				for (client c : clients) {
+					write(c.msgSock, stop_msg, sizeof(stop_msg));
+				}
 			}
-                
             printf("Sent stop...\n");
             bytesSent = 0;
 
@@ -810,9 +831,12 @@ void setKeepAlive(int sock) {
 }
 
 void ctrl_c(int){
-	for (client c : clients) {
-		close(c.msgSock);
-		close(c.songSock);
+	{
+		std::lock_guard<std::mutex> lk(clients_mutex);
+		for (client c : clients) {
+			close(c.msgSock);
+			close(c.songSock);
+		}
 	}
 	for(std::string s : fileNames) {
 		if (remove(s.c_str()) != 0) {
