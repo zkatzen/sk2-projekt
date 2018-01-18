@@ -283,6 +283,7 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 			{
 				std::lock_guard<std::mutex> lk(cv_m);
 				playlistOn = true;
+				printf("UNLOCKING");
 			}
 			cv.notify_all();
 			playlistStartNotify();  
@@ -561,14 +562,26 @@ void messagesChannel(int messageSock, int sock) {
 
 void goodbyeSocket(int sock, int messageSock) {
 
-	// close(sock);
+	/*
+	 * PROBLEM:
+	 * Zamykamy tutaj socket, potem wątek do odbierania piosenek
+	 * próbuje wykonać read na zamkniętym sockecie i zwraca -1,
+	 * mimo że POLL uznał przed chwilą że było zdarzenie. ???
+	 */
+	close(sock);
 	close(messageSock);
+
+	for (auto it = clients.begin(); it != clients.end(); (*it).songSock == sock ? it = clients.erase(it) : ++it)
+    ;
 	
-	std::lock_guard<std::mutex> lk(clients_mutex);
-	clients.erase(client(sock, messageSock));
-	
-	printf("\nSocket %d has sent goodbye...\n", messageSock);
-	
+	if (clients.empty()) {
+		std::cout << "EMPTY...";
+		
+		playlistOn = false;
+		currentFile = -1;
+		std::cout << "done! \n";
+	}
+	printf("\nSocket %d has sent goodbye...\n", sock);
 }
 
 void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize) {
@@ -793,8 +806,8 @@ void sendSongToClient() {
     while (1) {
 		std::unique_lock<std::mutex> lk(cv_m);
         cv.wait(lk, []{return playlistOn == true;});
-        
         if (currentFile == -1) {
+			printf("no current file");
 			if (fileNames.size() > 0) {
 				nextSongRequest = true;
                 // currentFile = 0;
