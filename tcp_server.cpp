@@ -536,16 +536,18 @@ void goodbyeSocket(int sock, int messageSock) {
 	close(sock);
 	close(messageSock);
 	
-	std::lock_guard<std::mutex> lk(clients_mutex);
+	//std::lock_guard<std::mutex> lk(clients_mutex);
 	
 	
 	for (auto it = clients.begin(); it != clients.end(); (*it).songSock == sock ? it = clients.erase(it) : ++it)
     ;
 	
 	if (clients.empty()) {
-		playlistStopNotify();
+		std::cout << "EMPTY...";
+		
 		playlistOn = false;
 		currentFile = -1;
+		std::cout << "done! \n";
 	}
 	printf("\nSocket %d has sent goodbye...\n", sock);
 }
@@ -761,7 +763,6 @@ void sendSongToClient() {
     while (1) {
 		std::unique_lock<std::mutex> lk(cv_m);
         cv.wait(lk, []{return playlistOn == true;});
-        std::cout << "CURR " << currentFile << std::endl;
         if (currentFile == -1) {
 			printf("no current file");
 			if (fileNames.size() > 0) {
