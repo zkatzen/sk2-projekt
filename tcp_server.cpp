@@ -450,7 +450,12 @@ void receiveDataFromClient(int sock, int msgSock) {
 			}
 
 			else if (bytesRead < 0) {
-				printf("! [songSock] got error - %d fd : %s\n", sock, strerror(errno));
+				if (errno == EBADF) {
+					printf("! [songSock] got error - %d fd : %s\n! [songSock] probably sent 'good-bye'...\n", sock, strerror(errno));
+				}
+				else {
+					printf("! [songSock] got error - %d fd : %s\n", sock, strerror(errno));
+				}
 				return;
 			}
 
@@ -461,6 +466,7 @@ void receiveDataFromClient(int sock, int msgSock) {
 		}
 		else {
 			printf("Something else happened O.o %d \n", singlePollFd[0].revents);
+			return;
 		}
 	}
 	
@@ -496,7 +502,12 @@ void messagesChannel(int messageSock, int sock) {
 
 			if (bytesRead < 0) {
 				// cant read from sock = disconnection?
-				printf("! [messageSock] got error - %d fd : %s\n", messageSock, strerror(errno));
+				if (errno == EBADF) {
+					printf("! [messageSock] got error - %d fd : %s\n! [messageSock] probably sent 'good-bye'...\n", messageSock, strerror(errno));
+				}
+				else {
+					printf("! [messageSock] got error - %d fd : %s\n", messageSock, strerror(errno));
+				}	
 				return;
 			}
 			
@@ -555,7 +566,13 @@ void messagesChannel(int messageSock, int sock) {
 			return;
 		}
 		else {
+			/*
+			 * Posprawdzać wszystkie opcje co tu się dzieje, POLECAM <3
+			 * Np. 25 = pollin+pollerr+pollhup
+			 * 	   17 = pollin+pollhup
+			 */ 
 			printf("Something else happened O.o %d \n", singlePollFd[0].revents);
+			return;
 		}
 	}
 }
@@ -581,7 +598,7 @@ void goodbyeSocket(int sock, int messageSock) {
 		currentFile = -1;
 		std::cout << "done! \n";
 	}
-	printf("\nSocket %d has sent goodbye...\n", sock);
+	printf("\nSocket %d has sent goodbye...\n", messageSock);
 }
 
 void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize) {
