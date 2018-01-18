@@ -25,6 +25,7 @@
 #include <map>
 #include <atomic>
 #include <condition_variable>
+#include <mutex>
 
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +37,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/functional/hash.hpp>
 
-#include <sys/epoll.h>
 
 struct client {
 	
@@ -166,10 +166,10 @@ void goodbyeSocket(int sock, int messageSock);
 int handleServerMsgs(char* msg, int sock, int mesageSock);
 void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize);
 
-    int songsPollFd, msgsPollFd;
-	epoll_event event;
-	const int MAX_EVENTS = 500;
-	struct epoll_event ev, events[MAX_EVENTS];
+int songsPollFd, msgsPollFd;
+epoll_event event;
+const int MAX_EVENTS = 500;
+struct epoll_event ev, events[MAX_EVENTS];
 
 
 int main(int argc, char **argv){
@@ -303,9 +303,12 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 		//TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
 		//if (posUp == currentPlaying) {currentPlaying--;}
 		//else if(posUp == (currentPlaying-1)) {currentPlaying++;}
-		auto temp = fileNames[posUp-1];
-		fileNames[posUp-1] = fileNames[posUp];
-		fileNames[posUp] = temp;
+		{
+			std::lock_guard<std::mutex> lk(fileNames_mutex);
+			auto temp = fileNames[posUp-1];
+			fileNames[posUp-1] = fileNames[posUp];
+			fileNames[posUp] = temp;
+		}
 		updatePlaylistInfo();
 	   
 	}
@@ -318,9 +321,12 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 		//TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
 		//if (posUp == currentPlaying) {currentPlaying--;}
 		//else if(posUp == (currentPlaying-1)) {currentPlaying++;}
-		auto temp = fileNames[posDown+1];
-		fileNames[posDown+1] = fileNames[posDown];
-		fileNames[posDown] = temp;
+		{
+			std::lock_guard<std::mutex> lk(fileNames_mutex);
+			auto temp = fileNames[posDown+1];
+			fileNames[posDown+1] = fileNames[posDown];
+			fileNames[posDown] = temp;
+		}
 		updatePlaylistInfo(); 
 	}
 	else if (strstr(msg, songDelete) != nullptr) {
@@ -330,14 +336,17 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 		songPos[(newLinePtr-msg)-(del-msg+sizeof(songDelete)-1)] = '\0';
 		int posDel = atoi(songPos);
 		if(posDel < currentFile) {--currentFile;}
-		auto fileN = fileNames[posDel];             
-		fileNames.erase(fileNames.begin()+posDel);
-             
-		if (remove(fileN.c_str()) != 0) {
-			printf("troubles with removing %s\n", fileN.c_str());
-		}
-		else {
-			printf("removing file %s\n", fileN.c_str());
+		{
+			std::lock_guard<std::mutex> lk(fileNames_mutex);
+			auto fileN = fileNames[posDel];             
+			fileNames.erase(fileNames.begin()+posDel);
+		
+			if (remove(fileN.c_str()) != 0) {
+				printf("troubles with removing %s\n", fileN.c_str());
+			}
+			else {
+				printf("removing file %s\n", fileN.c_str());
+			}
 		}
 		updatePlaylistInfo();
 	}
@@ -355,7 +364,6 @@ void receiveDataFromClient(int sock, int msgSock) {
 		std::lock_guard<std::mutex> lk(clients_mutex);
 		clients.insert(newClient);
 	}
-
 	
 	std::thread tt(messagesChannel, msgSock, sock);	
 	tt.detach();
@@ -568,7 +576,10 @@ void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentB
 	printf("GOT IT!\n");
 
 	std::string fileName = std::string(fN);
-	fileNames.push_back(fileName);
+	{
+		std::lock_guard<std::mutex> lk(fileNames_mutex);
+		fileNames.push_back(fileName);
+	}
 	printf("Loaded song, closing file '%s'...\n", fN);
 	
 	if (close(fileFd) == 0) {
@@ -589,6 +600,7 @@ void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentB
 };
 
 void playlistStartNotify() {
+	std::lock_guard<std::mutex> lk(clients_mutex);
 	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
 	for (int n = 0; n < nfds; n++) {
 		if (events[n].data.fd != 0) {
@@ -599,6 +611,7 @@ void playlistStartNotify() {
 }
 
 void playlistStopNotify() {
+	std::lock_guard<std::mutex> lk(clients_mutex);
 	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
 	for (int n = 0; n < nfds; n++) {
 		if (events[n].data.fd != 0) {
@@ -609,6 +622,7 @@ void playlistStopNotify() {
 }
 
 void sendNewDataToClient(int sock) {
+	std::lock_guard<std::mutex> lk(clients_mutex);
 	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
 	for (int n = 0; n < nfds; n++) {
 		if (events[n].data.fd == sock) {
@@ -646,11 +660,13 @@ std::string getPlayListString() {
 	
 	std::map<std::string, std::string>::iterator it;
 	int counter = 1;
-	for (unsigned int i = 0; i < fileNames.size(); i++) {
-		result += "<" + std::to_string(counter++) + ":";
-		result += fileNamesDict[fileNames[i]] + ":" + playList[fileNames[i]];
+	{
+		std::lock_guard<std::mutex> lk(fileNames_mutex);
+		for (unsigned int i = 0; i < fileNames.size(); i++) {
+			result += "<" + std::to_string(counter++) + ":";
+			result += fileNamesDict[fileNames[i]] + ":" + playList[fileNames[i]];
+		}
 	}
-	
 	return result;
 	
 }
@@ -668,6 +684,7 @@ void sendPlaylistInfo(int sock, std::string plString) {
 	dataStr.copy(data, plSize);
 	data[plSize] = '\0';
 	
+	//std::lock_guard<std::mutex> lk(clients_mutex);
 	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
 	for (int n = 0; n < nfds; n++) {
 		if (events[n].data.fd == sock) {
@@ -749,7 +766,10 @@ void sendSongToClient() {
         if (nextSongRequest) {
             
             currentFile++;
-            currentFile = currentFile % fileNames.size();
+            {
+				std::lock_guard<std::mutex> lk(fileNames_mutex);
+				currentFile = currentFile % fileNames.size();
+			}
 				
             std::ifstream myFile (fileNames[currentFile], std::ios::in | std::ios::binary);
             fileSize = getFileSize(myFile);
@@ -766,20 +786,23 @@ void sendSongToClient() {
             buffer += headerSize;
 
             printf("Sending start... chunksCount - %d\n", chunksCount);
-                
-            int res = sprintf(plPosBuf, playlistPos, currentFile+1);
-			nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
-			for (n = 0; n < nfds; n++) {
-				if (events[n].data.fd != 0) {
-					write(events[n].data.fd, plPosBuf, res + 1);
-					write(events[n].data.fd, start_msg, sizeof(start_msg));
+            
+            {
+				std::lock_guard<std::mutex> lk(clients_mutex);    
+				int res = sprintf(plPosBuf, playlistPos, currentFile+1);
+				nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+				for (n = 0; n < nfds; n++) {
+					if (events[n].data.fd != 0) {
+						write(events[n].data.fd, plPosBuf, res + 1);
+						write(events[n].data.fd, start_msg, sizeof(start_msg));
+					}
+				} 
+			
+				nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
+				for (n = 0; n < nfds; n++) {
+					if (events[n].data.fd != 0)
+						write(events[n].data.fd, header, headerSize);
 				}
-			} 
-		   
-			nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
-			for (n = 0; n < nfds; n++) {
-				if (events[n].data.fd != 0)
-					write(events[n].data.fd, header, headerSize);
 			}  
 
             bytesSent += headerSize;         
@@ -793,23 +816,27 @@ void sendSongToClient() {
 			if (fileSize - bytesSent >= chunkSize) { // can send one whole chunk of data (or more)
 				memcpy(dataChunk, buffer, chunkSize);
 				buffer += chunkSize;
-
-				nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
-				for (n = 0; n < nfds; n++) {
-					if (events[n].data.fd != 0)
-						write(events[n].data.fd, dataChunk, chunkSize);
+				{
+					std::lock_guard<std::mutex> lk(clients_mutex);
+					nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
+					for (n = 0; n < nfds; n++) {
+						if (events[n].data.fd != 0)
+							write(events[n].data.fd, dataChunk, chunkSize);
+					}
+					bytesSent += chunkSize;
 				}
-				bytesSent += chunkSize;
 			}
-			
 			else { // less than chunkSize of data remains
 				int rem = fileSize - bytesSent;
 				memcpy(dataChunk, buffer, rem);
 				buffer += rem; // (should be) end of file
-				nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
-				for (n = 0; n < nfds; n++) {
-					if (events[n].data.fd != 0)
-						write(events[n].data.fd, dataChunk, rem);
+				{
+					std::lock_guard<std::mutex> lk(clients_mutex);
+					nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
+					for (n = 0; n < nfds; n++) {
+						if (events[n].data.fd != 0)
+							write(events[n].data.fd, dataChunk, rem);
+					}
 				}
 				bytesSent += rem;
 
@@ -821,10 +848,13 @@ void sendSongToClient() {
         }
            
         if (songSet && bytesSent >= fileSize) {
-			nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
-			for (n = 0; n < nfds; n++) {
-				if (events[n].data.fd != 0) {
-					write(events[n].data.fd, stop_msg, sizeof(stop_msg));
+			{
+				std::lock_guard<std::mutex> lk(clients_mutex);
+				nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+				for (n = 0; n < nfds; n++) {
+					if (events[n].data.fd != 0) {
+						write(events[n].data.fd, stop_msg, sizeof(stop_msg));
+					}
 				}
 			}
 
@@ -872,13 +902,11 @@ void setKeepAlive(int sock) {
 }
 
 void ctrl_c(int){
-	{
-		std::lock_guard<std::mutex> lk(clients_mutex);
-		for (client c : clients) {
-			close(c.msgSock);
-			close(c.songSock);
-		}
+	for (client c : clients) {
+		close(c.msgSock);
+		close(c.songSock);
 	}
+	
 	for(std::string s : fileNames) {
 		if (remove(s.c_str()) != 0) {
 			printf("troubles with removing %s\n", s.c_str());
