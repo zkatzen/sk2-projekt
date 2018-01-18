@@ -123,9 +123,18 @@ void ClientWindow::pushMeButtonClicked() {
 void ClientWindow::closeEvent(QCloseEvent *event) {
     // stuff
     if (connectedToServer) {
+
         socketForMsg->write("^GOOD_BYEEE^\n");
+
+        socket->disconnect();
+        socketForMsg->disconnect();
+
         socketForMsg->disconnectFromHost();
         socket->disconnectFromHost();
+
+        socket->deleteLater();
+        socketForMsg->deleteLater();
+
     }
     QMessageBox::information(this, "(cries)", "Nevermind, I'll find someone like you (uuu)");
     QWidget::closeEvent(event);
@@ -155,7 +164,7 @@ void ClientWindow::sendSongToServer() {
 
 
         socket->write(dataFromFile);
-        socket->write("\n");
+        // socket->write("\n");
         ui->messageBox->append("\nSent " + loadedFileName + " file to server (or attempted to ;)), file size was " +
                                QString::number(sourceFile.size()));
 

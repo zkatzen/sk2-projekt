@@ -161,6 +161,12 @@ void goodbyeSocket(int sock, int messageSock);
 int handleServerMsgs(char* msg, int sock, int mesageSock);
 void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize);
 
+    int songsPollFd, msgsPollFd;
+	epoll_event event;
+	const int MAX_EVENTS = 500;
+	struct epoll_event ev, events[MAX_EVENTS];
+
+
 int main(int argc, char **argv){
 	// get and validate port number
 	if(argc != 4) error(1, 0, "Need 3 args: port + filename + port");
@@ -199,10 +205,22 @@ int main(int argc, char **argv){
 	if(res) 
 		error(1, errno, "[2] listen failed");
         
+    // EPOLL STUFF
+    songsPollFd = epoll_create1(0);
+    if (songsPollFd < 0) 
+		error(1, errno, "Couldn't create SongsEPOLL FD!");
+	
+	msgsPollFd = epoll_create1(0);
+    if (msgsPollFd < 0) 
+		error(1, errno, "Couldn't create MsgsEPOLL FD!");
+		
+	event.events = EPOLLOUT; // available for WRITE
+	// /EPOLL STUFF
+    
 	currentFile = -1;
 	std::thread br(sendSongToClient);
     br.detach();
-    	//currentPlaying = 0;
+
 	while(true) {
 
 		// prepare placeholders for client address
@@ -217,10 +235,23 @@ int main(int argc, char **argv){
 			error(1, errno, "[1] accept failed");
 		printf("! [1] New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFd);
 
+		event.events = EPOLLOUT; 
+		event.data.fd = clientFd;
+		if (epoll_ctl(songsPollFd, EPOLL_CTL_ADD, clientFd, &event) == -1) {
+			perror("epoll_ctl: client fd sock");
+			exit(EXIT_FAILURE);
+		}
+
 		auto clientFdMsg = accept(servFdMsg, (sockaddr*) &clientAddr, &clientAddrSize);
 		if (clientFdMsg == -1) 
 			error(1, errno, "[2] accept failed");
 		printf("! [2] New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFdMsg);
+
+		event.data.fd = clientFdMsg;
+		if (epoll_ctl(msgsPollFd, EPOLL_CTL_ADD, clientFdMsg, &event) == -1) {
+			perror("epoll_ctl: client msg fd sock");
+			exit(EXIT_FAILURE);
+		}
 
 		std::thread t(receiveDataFromClient, clientFd, clientFdMsg);
 		t.detach();
@@ -339,7 +370,6 @@ void receiveDataFromClient(int sock, int msgSock) {
 			
 			for (unsigned int i = bytesRead; i < sizeof(buffer); i++)
 				buffer[i] = '\0';
-							printf("%s\n", buffer);
 
 			char *checkNewLine = strstr(buffer, "\n");
 			
@@ -480,8 +510,12 @@ void messagesChannel(int messageSock, int sock) {
 }
 
 void goodbyeSocket(int sock, int messageSock) {
+	
+	close(sock);
+	close(messageSock);
+	
 	clients.erase(client(sock, messageSock));
-	printf("\nSocket %d has sent goodbye...", sock);
+	printf("\nSocket %d has sent goodbye...\n", sock);
 }
 
 void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize) {
@@ -540,28 +574,35 @@ void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentB
 
 };
 
-    
-    
-    
 void playlistStartNotify() {
-	for (client c : clients) {
-		write(c.msgSock, playlistFire, sizeof(playlistFire));
+	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+	for (int n = 0; n < nfds; n++) {
+		if (events[n].data.fd != 0) {
+			write(events[n].data.fd, playlistFire, sizeof(playlistFire));
+		}
 	}
 	printf("Start playlist -> all clients notified.\n");
 }
 
 void playlistStopNotify() {
-	for (client c : clients) {
-		write(c.msgSock, playlistStop, sizeof(playlistStop));
+	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+	for (int n = 0; n < nfds; n++) {
+		if (events[n].data.fd != 0) {
+			write(events[n].data.fd, playlistStop, sizeof(playlistStop));
+		}
 	}
 	printf("Stop playlist -> all clients notified.\n");
 }
 
-
 void sendNewDataToClient(int sock) {
-	sendPlaylistInfo(sock, getPlayListString());
-	if (playlistOn)
-		write(sock, playlistFire, sizeof(playlistFire));
+	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+	for (int n = 0; n < nfds; n++) {
+		if (events[n].data.fd == sock) {
+			sendPlaylistInfo(sock, getPlayListString());
+			if (playlistOn)
+				write(sock, playlistFire, sizeof(playlistFire));
+		}
+	}
 }
 
 double getSongDuration(int songsize) {
@@ -612,12 +653,16 @@ void sendPlaylistInfo(int sock, std::string plString) {
 	dataStr.copy(data, plSize);
 	data[plSize] = '\0';
 	
-	int writeRes = write(sock, data, sizeof(data));
-	if (writeRes == -1) {
-		checkClientFd(sock);
-		return;
+	int nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+	for (int n = 0; n < nfds; n++) {
+		if (events[n].data.fd == sock) {
+			int writeRes = write(sock, data, sizeof(data));
+			if (writeRes == -1) {
+				checkClientFd(sock);
+				return;
+			}
+		}
 	}
-
 }
 
 int getFileSize(std::ifstream &file) {
@@ -656,7 +701,7 @@ void sendSongToClient() {
     
     int chunkSize = 17640;
     int headerSize = 44; 
-    int i, chunksCount;
+    int i, n, nfds, chunksCount;
     
     char *buffer = NULL;
     char *fileDataStart = NULL;
@@ -711,12 +756,19 @@ void sendSongToClient() {
                 
                 int res = sprintf(plPosBuf, playlistPos, currentFile+1);
 
-                for (client c : clients) {
-					write(c.msgSock, plPosBuf, res + 1);                    
-                    write(c.msgSock, start_msg, sizeof(start_msg));
-
-                    write(c.songSock, header, headerSize);
-				}      
+				nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+				for (n = 0; n < nfds; n++) {
+					if (events[n].data.fd != 0) {
+						write(events[n].data.fd, plPosBuf, res + 1);
+						write(events[n].data.fd, start_msg, sizeof(start_msg));
+					}
+				} 
+			   
+				nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
+				for (n = 0; n < nfds; n++) {
+					if (events[n].data.fd != 0)
+						write(events[n].data.fd, header, headerSize);
+				}  
                 
                 bytesSent += headerSize;         
                 songSet = true;
@@ -732,23 +784,24 @@ void sendSongToClient() {
                 if (fileSize - bytesSent >= chunkSize) { // can send one whole chunk of data (or more)
 					memcpy(dataChunk, buffer, chunkSize);
 					buffer += chunkSize;
-					for (client c : clients) {
-						write(c.songSock, dataChunk, chunkSize);
+					nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
+					for (n = 0; n < nfds; n++) {
+						if (events[n].data.fd != 0)
+							write(events[n].data.fd, dataChunk, chunkSize);
 					}
 					bytesSent += chunkSize;
-					// printf("Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
 				}
 				
 				else { // less than chunkSize of data remains
 					int rem = fileSize - bytesSent;
 					memcpy(dataChunk, buffer, rem);
 					buffer += rem; // (should be) end of file
-					for (client c : clients) {
-						write(c.songSock, dataChunk, rem);
+					nfds = epoll_wait(songsPollFd, events, MAX_EVENTS, -1);
+					for (n = 0; n < nfds; n++) {
+						if (events[n].data.fd != 0)
+							write(events[n].data.fd, dataChunk, rem);
 					}
 					bytesSent += rem;
-					// printf("[REM PART!] Sent %d bytes, bytes left to send: %d\n", bytesSent, fileSize - bytesSent);
-
 				}
 				
                 nanosleep(&interval, NULL);
@@ -758,10 +811,13 @@ void sendSongToClient() {
             
             if (songSet && bytesSent >= fileSize) {
 
-                for (client c : clients) {
-					write(c.msgSock, stop_msg, sizeof(stop_msg));
+				nfds = epoll_wait(msgsPollFd, events, MAX_EVENTS, -1);
+				for (n = 0; n < nfds; n++) {
+					if (events[n].data.fd != 0) {
+						write(events[n].data.fd, stop_msg, sizeof(stop_msg));
+					}
 				}
-                
+
                 printf("Sent stop...\n");
                 bytesSent = 0;
 
@@ -821,6 +877,10 @@ void ctrl_c(int){
 	}
 	close(servFd);
 	close(servFdMsg);
+	
+	close(songsPollFd);
+	close(msgsPollFd);
+	
 	printf("Closing server\n");
 	exit(0);
 }
