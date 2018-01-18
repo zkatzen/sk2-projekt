@@ -53,8 +53,13 @@ ClientWindow::ClientWindow(QWidget *parent) :
 }
 
 void ClientWindow::upButtonClicked() {
+
     int itemRow = ui->playlistWidget->currentRow();
-    if(itemRow > 0 && itemRow != currPlPosition && (itemRow-1) != currPlPosition) {
+    QTableWidgetItem* item = ui->playlistWidget->item(itemRow,0);
+
+    if(item && !item->text().isEmpty() && // check if there's something in this row
+            itemRow > 0 && itemRow != currPlPosition && (itemRow-1) != currPlPosition) {
+
         QByteArray *upSong = new QByteArray("SONG_UP_");
         upSong->append(QString::number(itemRow));
         upSong->append("\n");
@@ -64,26 +69,36 @@ void ClientWindow::upButtonClicked() {
 }
 
 void ClientWindow::downButtonClicked() {
+
     int itemRow = ui->playlistWidget->currentRow();
     QTableWidgetItem *nextItem = ui->playlistWidget->item(itemRow+1, 0);
+
     if(nextItem && !nextItem->text().isEmpty() && itemRow != currPlPosition && (itemRow+1) != currPlPosition) {
+
         QByteArray *downSong = new QByteArray("SONG_DO_");
         downSong->append(QString::number(itemRow));
         downSong->append("\n");
         socketForMsg->write(downSong->data());
         ui->playlistWidget->selectRow(itemRow+1);
+
     }
 }
 
 void ClientWindow::deleteButtonClicked() {
+
     int itemRow = ui->playlistWidget->currentRow();
-    if(itemRow != currPlPosition) {
+    QTableWidgetItem* item = ui->playlistWidget->item(itemRow,0);
+
+    if(item && !item->text().isEmpty() && // check if there's something in this row
+            itemRow != currPlPosition) {
+
         QByteArray *downSong = new QByteArray("SONG_DEL_");
         downSong->append(QString::number(itemRow));
         downSong->append("\n");
         socketForMsg->write(downSong->data());
         if(itemRow <= currPlPosition)
             ui->playlistWidget->selectRow(--currPlPosition);
+
     }
 
 }
