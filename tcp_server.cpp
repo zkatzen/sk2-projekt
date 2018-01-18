@@ -38,6 +38,8 @@
 
 #include <sys/epoll.h>
 
+#include "Stopwatch.hpp"
+
 struct client {
 	
 	client(int sock1, int sock2)
@@ -223,7 +225,7 @@ int main(int argc, char **argv){
 	currentFile = -1;
 	std::thread br(sendSongToClient);
     br.detach();
-
+    
 	while(true) {
 
 		// prepare placeholders for client address
@@ -465,17 +467,14 @@ void messagesChannel(int messageSock, int sock) {
 			// clear rest of the buffer
 			for (int i = bytesRead; i < msgBufSize; i++)
 				message[i] = '\0';
-            //printf("Got message: %.8s :), it was %d bytes.\n ", message, bytesRead);
             
             if (tempBuffering) {
 				temp += std::string(message);
 				msgPtr = (char *) temp.c_str();
-				// printf("After concat: %s\n", msgPtr);
 
 			}
             
             checkNewLine = strstr(msgPtr, "\n");
-       		// printf("What's going on? : %s, %d, %d, %d \n", checkNewLine, message, checkNewLine, checkNewLine-message);
 
             if (checkNewLine == nullptr) {
 				// no \n found in all bytes read

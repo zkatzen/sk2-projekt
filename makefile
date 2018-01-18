@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall --std=c++11 -pthread
+CXXFLAGS = -Wall --std=c++11 -pthread -I ..
 BOOSTFLAGS = -lboost_system -lboost_filesystem
 all: tcp_server
 tcp_server: tcp_server.o
