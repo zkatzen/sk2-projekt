@@ -241,6 +241,7 @@ int main(int argc, char **argv){
 		if (clientFd == -1) 
 			error(1, errno, "[1] accept failed");
 		printf("! [1] New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFd);
+		fcntl(clientFd, F_SETFL, O_NONBLOCK, 1);
 
 		event.events = EPOLLOUT; 
 		event.data.fd = clientFd;
@@ -253,6 +254,7 @@ int main(int argc, char **argv){
 		if (clientFdMsg == -1) 
 			error(1, errno, "[2] accept failed");
 		printf("! [2] New connection from: %s:%hu (fd: %d)\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port), clientFdMsg);
+		fcntl(clientFdMsg, F_SETFL, O_NONBLOCK, 1);
 
 		event.data.fd = clientFdMsg;
 		if (epoll_ctl(msgsPollFd, EPOLL_CTL_ADD, clientFdMsg, &event) == -1) {
@@ -385,67 +387,80 @@ void receiveDataFromClient(int sock, int msgSock) {
 	std::string buf;
 	buf.reserve(1024);
 	
+	pollfd singlePollFd[1]{};
+	singlePollFd[0].fd = sock;
+	singlePollFd[0].events = POLLIN;
+	
 	while (1) {
 
-		bytesRead = read(sock, buffer, sizeof(buffer));
+		poll(singlePollFd, 1, -1);
+		if (singlePollFd[0].revents == POLLIN) {
 
-		if (bytesRead > 0) {
-			
-			for (unsigned int i = bytesRead; i < sizeof(buffer); i++)
-				buffer[i] = '\0';
+			bytesRead = read(sock, buffer, sizeof(buffer));
 
-			char *checkNewLine = strstr(buffer, "\n");
-			
-			if (checkNewLine == nullptr) {
-				buf += std::string(buffer, bytesRead);
-			}
-			else {
-				buf += std::string(buffer, checkNewLine-buffer);
-				printf("End of buffering with result <%s>\n", buf.c_str());
+			if (bytesRead > 0) {
 				
-				if (checkNewLine+1 < buffer + bytesRead) {
-					loadSong(sock, buf, checkNewLine+1, buffer + bytesRead - (checkNewLine+1));
-				}
-				else {
-					loadSong(sock, buf, NULL, 0);
-				}
+				for (unsigned int i = bytesRead; i < sizeof(buffer); i++)
+					buffer[i] = '\0';
 
-				buf.clear();
-				if (checkNewLine-buffer+1 == sizeof(buffer) || checkNewLine + 1 == '\0') {
-					// end of message
+				char *checkNewLine = strstr(buffer, "\n");
+				
+				if (checkNewLine == nullptr) {
+					buf += std::string(buffer, bytesRead);
 				}
 				else {
-					// there's something
-					checkNewLine += 1;
-					char *anotherLine = strstr(checkNewLine, "\n");
-					while (anotherLine != nullptr) {
-						std::string message = std::string(checkNewLine, anotherLine-checkNewLine);
-						
-						// process message ? nie wiem jaka szansa że to się wydarzy
-						printf("message %s\n", message.c_str());
-						checkNewLine = anotherLine + 1;
-						anotherLine = strstr(checkNewLine, "\n");
+					buf += std::string(buffer, checkNewLine-buffer);
+					printf("End of buffering with result <%s>\n", buf.c_str());
+					
+					if (checkNewLine+1 < buffer + bytesRead) {
+						loadSong(sock, buf, checkNewLine+1, buffer + bytesRead - (checkNewLine+1));
 					}
-					// no \n's left
-					if (checkNewLine < buffer+bytesRead) {
-						buf += std::string(checkNewLine, bytesRead - (checkNewLine-buffer));
-						
+					else {
+						loadSong(sock, buf, NULL, 0);
 					}
-				}																		
-			} 
+
+					buf.clear();
+					if (checkNewLine-buffer+1 == sizeof(buffer) || checkNewLine + 1 == '\0') {
+						// end of message
+					}
+					else {
+						// there's something
+						checkNewLine += 1;
+						char *anotherLine = strstr(checkNewLine, "\n");
+						while (anotherLine != nullptr) {
+							std::string message = std::string(checkNewLine, anotherLine-checkNewLine);
+							
+							// process message ? nie wiem jaka szansa że to się wydarzy
+							printf("message %s\n", message.c_str());
+							checkNewLine = anotherLine + 1;
+							anotherLine = strstr(checkNewLine, "\n");
+						}
+						// no \n's left
+						if (checkNewLine < buffer+bytesRead) {
+							buf += std::string(checkNewLine, bytesRead - (checkNewLine-buffer));
+							
+						}
+					}																		
+				} 		
+			}
 			
-		}
-		
-		else if (bytesRead == 0) {
-			// theres nothin'...
-		}
+			else if (bytesRead == 0) {
+				// theres nothin'...
+			}
 
-		else if (bytesRead < 0) {
-			// cant read from sock = disconnection?
-			printf("! Troubles with reading from %d :C\n", sock);
+			else if (bytesRead < 0) {
+				printf("! [songSock] got error - %d fd : %s\n", sock, strerror(errno));
+				return;
+			}
+
+		}
+		else if (singlePollFd[0].revents == POLLNVAL) {
+			printf("Song Sock %d has been closed.\n", sock);
 			return;
 		}
-
+		else {
+			printf("Something else happened O.o %d \n", singlePollFd[0].revents);
+		}
 	}
 	
 	printf("\n%d sock's thread has escaped while loop :)\n", sock);	
@@ -466,77 +481,94 @@ void messagesChannel(int messageSock, int sock) {
     int bytesRead;
     sendNewDataToClient(messageSock);
     
+    pollfd singlePollFd[1]{};
+	singlePollFd[0].fd = messageSock;
+	singlePollFd[0].events = POLLIN;
+    
     while (1) {
 		
-        bytesRead = read(messageSock, message, msgBufSize);
-        msgPtr = message;
+		int ready = poll(singlePollFd, 1, -1);
+		if (singlePollFd[0].revents == POLLIN) {
+		
+			bytesRead = read(messageSock, message, msgBufSize);
+			msgPtr = message;
 
-        if (bytesRead < 0) {
-            // cant read from sock = disconnection?
-            printf("! Troubles with reading from %d :C\n", messageSock);
-            return;
-        }
-        
-        else if (bytesRead > 0) {
+			if (bytesRead < 0) {
+				// cant read from sock = disconnection?
+				printf("! [messageSock] got error - %d fd : %s\n", messageSock, strerror(errno));
+				return;
+			}
 			
-			// clear rest of the buffer
-			for (int i = bytesRead; i < msgBufSize; i++)
-				message[i] = '\0';
-            
-            if (tempBuffering) {
-				temp += std::string(message);
-				msgPtr = (char *) temp.c_str();
+			else if (bytesRead > 0) {
+				
+				// clear rest of the buffer
+				for (int i = bytesRead; i < msgBufSize; i++)
+					message[i] = '\0';
+				
+				if (tempBuffering) {
+					temp += std::string(message);
+					msgPtr = (char *) temp.c_str();
 
-			}
-            
-            checkNewLine = strstr(msgPtr, "\n");
-
-            if (checkNewLine == nullptr) {
-				// no \n found in all bytes read
-				tempBuffering = true;
-				temp += std::string(message, sizeof(message));
-				msgPtr = (char *) temp.c_str();
-			}
-
-            else { // there are some \n's
-
-				while (checkNewLine != nullptr) { // following \n's are found
-					
-					// check what's that!					
-					int result = handleServerMsgs(msgPtr, sock, messageSock);
-					if (result == -1)
-						return;
-									
-					previous = checkNewLine;
-					checkNewLine = strstr(previous+1, "\n");
-						
 				}
-				// nie ma nastepnych \n
-				if (previous+1 < msgPtr + bytesRead) {
-					// ale zostaly dane
-					temp += std::string(previous+1, (msgPtr+bytesRead - previous+1));
+				
+				checkNewLine = strstr(msgPtr, "\n");
+
+				if (checkNewLine == nullptr) {
+					// no \n found in all bytes read
 					tempBuffering = true;
+					temp += std::string(message, sizeof(message));
+					msgPtr = (char *) temp.c_str();
 				}
-				else {
-					// wszystko ok?
-					checkNewLine = nullptr;
-					tempBuffering = false;
-					temp = std::string("");
+
+				else { // there are some \n's
+
+					while (checkNewLine != nullptr) { // following \n's are found
+						
+						// check what's that!					
+						int result = handleServerMsgs(msgPtr, sock, messageSock);
+						if (result == -1)
+							return;
+										
+						previous = checkNewLine;
+						checkNewLine = strstr(previous+1, "\n");
+							
+					}
+					// nie ma nastepnych \n
+					if (previous+1 < msgPtr + bytesRead) {
+						// ale zostaly dane
+						temp += std::string(previous+1, (msgPtr+bytesRead - previous+1));
+						tempBuffering = true;
+					}
+					else {
+						// wszystko ok?
+						checkNewLine = nullptr;
+						tempBuffering = false;
+						temp = std::string("");
+					}
 				}
+				
 			}
-            
-        }
-    }
+		}
+		else if (singlePollFd[0].revents == POLLNVAL) {
+			printf("Message Sock %d has been closed.\n", messageSock);
+			return;
+		}
+		else {
+			printf("Something else happened O.o %d \n", singlePollFd[0].revents);
+		}
+	}
 }
 
 void goodbyeSocket(int sock, int messageSock) {
 
-	close(sock);
+	// close(sock);
 	close(messageSock);
 	
 	std::lock_guard<std::mutex> lk(clients_mutex);
 	clients.erase(client(sock, messageSock));
-	printf("\nSocket %d has sent goodbye...\n", sock);
+	
+	printf("\nSocket %d has sent goodbye...\n", messageSock);
+	
 }
 
 void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentBufSize) {
@@ -552,7 +584,6 @@ void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentB
 	
 	std::string clientsFileName = songInfo.substr(fNStart, fSizeStart - fNStart);
 	std::string songSizeStr = songInfo.substr(fSizeStart);
-	// printf("[%s], [%s]\n", clientsFileName.c_str(), songSize.c_str());
 	int songSize = atoi(songSizeStr.c_str()); printf("SONG SIZE %d\n", songSize);
 	int bytesWritten = 0;
 	
@@ -567,10 +598,22 @@ void loadSong(int sock, std::string& songInfo, char *currentBuffer, int currentB
 	}
 	
 	int bytesReceived;
+	
+		
+	pollfd singlePollFd[1]{};
+	singlePollFd[0].fd = sock;
+	singlePollFd[0].events = POLLIN;
+	
 	while (bytesWritten < songSize) {
-		bytesReceived = read(sock, buffer, sizeof(buffer));
-		write(fileFd, buffer, bytesReceived);
-		bytesWritten += bytesReceived;
+		poll(singlePollFd, 1, -1);
+		if (singlePollFd[0].revents == POLLIN) {
+			bytesReceived = read(sock, buffer, sizeof(buffer));
+			write(fileFd, buffer, bytesReceived);
+			bytesWritten += bytesReceived;
+		}
+		else {
+			printf("Something else happened O.o %d \n", singlePollFd[0].revents);
+		}
 	} // songSize + 1 - klient nadał "\n"
 	printf("GOT IT!\n");
 
