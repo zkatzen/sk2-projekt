@@ -7,3 +7,4 @@ QtClient - basics/AudioClient/AudioClient.pro.user*
 song*
 *.mp3
 QtClient - basics/build-AudioClient-Qt_5_7_0_gcc_64-Debug/
+*.o
