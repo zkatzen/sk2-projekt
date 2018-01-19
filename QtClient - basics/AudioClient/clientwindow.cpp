@@ -131,9 +131,6 @@ void ClientWindow::stopPlaylistRequest() {
     }
 }
 
-void ClientWindow::pushMeButtonClicked() {
-    this->audioStart();
-}
 
 void ClientWindow::closeEvent(QCloseEvent *event) {
     // stuff
@@ -453,7 +450,7 @@ void ClientWindow::createAudioOutput() {
 void ClientWindow::selectWavFile() {
     auto fileName = QFileDialog::getOpenFileName(this, tr("Open File"),
                                                     "/home",
-                                                    tr("Music (*.wav *.mp3)"));
+                                                    tr("Music (*.wav)"));
     ui->fileNameInput->setText(fileName);
 }
 

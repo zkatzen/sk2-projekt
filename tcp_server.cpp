@@ -176,9 +176,9 @@ struct epoll_event ev, events[MAX_EVENTS];
 
 int main(int argc, char **argv){
 	// get and validate port number
-	if(argc != 4) error(1, 0, "Need 3 args: port + filename + port");
+	if(argc != 3) error(1, 0, "Need 2 args: port + port");
 	auto port = readPort(argv[1]);
-	auto portMsg = readPort(argv[3]);
+	auto portMsg = readPort(argv[2]);
 	// create socket
 	servFd = socket(AF_INET, SOCK_STREAM, 0);
     servFdMsg = socket(AF_INET, SOCK_STREAM, 0);
@@ -494,7 +494,7 @@ void messagesChannel(int messageSock, int sock) {
     
     while (1) {
 		
-		int ready = poll(singlePollFd, 1, -1);
+		poll(singlePollFd, 1, -1);
 		if (singlePollFd[0].revents == POLLIN) {
 		
 			bytesRead = read(messageSock, message, msgBufSize);

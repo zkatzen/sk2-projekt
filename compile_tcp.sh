@@ -6,4 +6,4 @@ then
 	exit 1
 fi
 
-./tcp_server ${1-12345} ${2-duck.wav} ${1-54321}
+./tcp_server ${1-12345} ${1-54321}
