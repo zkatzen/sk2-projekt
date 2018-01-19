@@ -283,7 +283,6 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 			{
 				std::lock_guard<std::mutex> lk(cv_m);
 				playlistOn = true;
-				printf("UNLOCKING");
 			}
 			cv.notify_all();
 			playlistStartNotify();  
@@ -305,9 +304,6 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 		memcpy(songPos, up + sizeof(songUp)-1, (newLinePtr-msg)-(up-msg+sizeof(songUp)-1));
 		songPos[(newLinePtr-msg)-(up-msg+sizeof(songUp)-1)] = '\0';
 		int posUp = atoi(songPos);
-		//TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
-		//if (posUp == currentPlaying) {currentPlaying--;}
-		//else if(posUp == (currentPlaying-1)) {currentPlaying++;}
 		{
 			std::lock_guard<std::mutex> lk(fileNames_mutex);
 			auto temp = fileNames[posUp-1];
@@ -323,9 +319,6 @@ int handleServerMsgs(char* msg, int sock, int messageSock) {
 		memcpy(songPos, down + sizeof(songDown)-1, (newLinePtr-msg)-(down-msg+sizeof(songDown)-1));
 		songPos[(newLinePtr-msg)-(down-msg+sizeof(songDown)-1)] = '\0';
 		int posDown = atoi(songPos);
-		//TODO: co jeśli jedna z zamienianych piosenek to ta co teraz gra?
-		//if (posUp == currentPlaying) {currentPlaying--;}
-		//else if(posUp == (currentPlaying-1)) {currentPlaying++;}
 		{
 			std::lock_guard<std::mutex> lk(fileNames_mutex);
 			auto temp = fileNames[posDown+1];
@@ -376,15 +369,13 @@ void receiveDataFromClient(int sock, int msgSock) {
 	std::string fileName;
 	std::string clientsFileName;	
 
-	char buffer[1024]; // tu może więcej gazu
+	char buffer[1024];
 	std::string previousBuffer = std::string("");
 	
 	int bytesRead;
-	//double songDuration = 0.0;
-	
+		
 	std::string songInfoStr = std::string("");
-	// BLA BLA BLA
-	
+		
 	std::string buf;
 	buf.reserve(1024);
 	
@@ -452,6 +443,7 @@ void receiveDataFromClient(int sock, int msgSock) {
 			else if (bytesRead < 0) {
 				if (errno == EBADF) {
 					printf("! [songSock] got error - %d fd : %s\n! [songSock] probably sent 'good-bye'...\n", sock, strerror(errno));
+					goodbyeSocket(sock, msgSock);
 				}
 				else {
 					printf("! [songSock] got error - %d fd : %s\n", sock, strerror(errno));
@@ -504,6 +496,7 @@ void messagesChannel(int messageSock, int sock) {
 				// cant read from sock = disconnection?
 				if (errno == EBADF) {
 					printf("! [messageSock] got error - %d fd : %s\n! [messageSock] probably sent 'good-bye'...\n", messageSock, strerror(errno));
+					goodbyeSocket(sock, messageSock);
 				}
 				else {
 					printf("! [messageSock] got error - %d fd : %s\n", messageSock, strerror(errno));
@@ -567,7 +560,7 @@ void messagesChannel(int messageSock, int sock) {
 		}
 		else {
 			/*
-			 * Posprawdzać wszystkie opcje co tu się dzieje, POLECAM <3
+			 * Posprawdzać wszystkie opcje co tu się dzieje
 			 * Np. 25 = pollin+pollerr+pollhup
 			 * 	   17 = pollin+pollhup
 			 */ 
@@ -949,9 +942,6 @@ int countDigits(int n) {
 
 void checkClientFd(int sock) {
 	printf("! got error when writing to %d fd : %s\n", sock, strerror(errno));
-	// obsluga błędów
-	// man7.org/linux/man-pages/man2/write.2.html - duzo ich tutaj
-	// (usunięcie z cilentFds i zamknięcie wątku)
 }
 
 uint16_t readPort(char * txt){

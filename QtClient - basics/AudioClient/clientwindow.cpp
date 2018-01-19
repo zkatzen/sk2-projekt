@@ -264,7 +264,7 @@ void ClientWindow::doConnect() {
 void ClientWindow::doConnectMsg() {
 
     auto host = ui->destAddr->text();
-    int secretPort = 54321;
+    int secretPort = ui->portNumber_2->value();
 
     if (socketForMsg && socket) {
         if (socketForMsg->state() == QTcpSocket::UnconnectedState) {
