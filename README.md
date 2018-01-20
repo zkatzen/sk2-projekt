@@ -22,3 +22,5 @@
 - Aby przejść do następnej piosenki należy klinkąć **NEXT SONG**
 - Aby zmienić kolejność playlisty (UWAGA: nie może zostać zmieniona kolejność aktualnie odtwarzanego utworu) należy użyć przycisków oznaczonych **UP** oraz **DOWN**
 - Aby usunąć piosenkę z playlisty należy klinkąć ptrzycisk **DELETE**, nie można usunąć aktualnie odtwarzanego pliku
+
+#### Uwaga - aby umożliwić odtwarzanie dźwięku, niezbędne było zasinstalowanie dodatkowej biblioteki poleceniem *sudo apt-get install gstreamer0.10-plugins-**
